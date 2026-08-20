@@ -126,7 +126,9 @@ class AetherConfigRepository(private val prefs: Prefs) {
             reconnectRetryLimit = prefs.getInt("${prefix}reconnect_retry_limit", 10),
             dnsList = prefs.getString("${prefix}dns_list", "1.1.1.1,1.0.0.1") ?: "1.1.1.1,1.0.0.1",
             shareHotspot = prefs.getBoolean("${prefix}share_hotspot", false),
-            openVpnConfigPath = prefs.getString("${prefix}openvpn_config_path", "") ?: ""
+            openVpnConfigPath = prefs.getString("${prefix}openvpn_config_path", "") ?: "",
+            openVpnUsername = prefs.getString("${prefix}openvpn_username", "") ?: "",
+            openVpnPassword = prefs.getString("${prefix}openvpn_password", "") ?: ""
         )
     }
 
@@ -200,6 +202,8 @@ class AetherConfigRepository(private val prefs: Prefs) {
         prefs.putString("${prefix}dns_list", cfg.dnsList)
         prefs.putBoolean("${prefix}share_hotspot", cfg.shareHotspot)
         prefs.putString("${prefix}openvpn_config_path", cfg.openVpnConfigPath)
+        prefs.putString("${prefix}openvpn_username", cfg.openVpnUsername)
+        prefs.putString("${prefix}openvpn_password", cfg.openVpnPassword)
     }
 
     fun resetToDefaults() {

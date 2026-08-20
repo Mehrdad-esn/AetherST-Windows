@@ -81,13 +81,17 @@ class AetherConfigRepositoryTest {
     fun `openvpn config path roundtrip with reload`() {
         val withOpenVpn = repository.config.value.copy(
             protocol = AetherProtocol.OPENVPN,
-            openVpnConfigPath = "C:\\Users\\me\\vpn\\server.ovpn"
+            openVpnConfigPath = "C:\\Users\\me\\vpn\\server.ovpn",
+            openVpnUsername = "user123",
+            openVpnPassword = "pass456"
         )
         repository.updateConfig(withOpenVpn)
 
         val reloaded = freshRepository().config.value
         assertEquals(AetherProtocol.OPENVPN, reloaded.protocol)
         assertEquals("C:\\Users\\me\\vpn\\server.ovpn", reloaded.openVpnConfigPath)
+        assertEquals("user123", reloaded.openVpnUsername)
+        assertEquals("pass456", reloaded.openVpnPassword)
     }
 
     @Test

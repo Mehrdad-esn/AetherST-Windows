@@ -41,7 +41,9 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -62,6 +64,7 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -92,6 +95,8 @@ private val ItemBottomPadding = 10.dp
 fun MainScreen(viewModel: AetherViewModel) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var subScreen by remember { mutableStateOf<SubScreen?>(null) }
+    var pendingOpenVpnPath by remember { mutableStateOf<String?>(null) }
+    var showOpenVpnCredentials by remember { mutableStateOf(false) }
     val saveableStateHolder = rememberSaveableStateHolder()
 
     val navigationRequest by viewModel.navigationRequest.collectAsState()
@@ -195,11 +200,20 @@ fun MainScreen(viewModel: AetherViewModel) {
                                     val fileName = dialog.file
                                     if (fileName != null) {
                                         val path = java.io.File(dialog.directory, fileName).absolutePath
-                                        viewModel.updateConfig(config.copy(openVpnConfigPath = path))
-                                        viewModel.showToast("OpenVPN config selected", false)
+                                        val needsAuth = runCatching {
+                                            java.io.File(path).readLines()
+                                                .any { it.trim().equals("auth-user-pass", ignoreCase = true) }
+                                        }.getOrDefault(false)
+                                        if (needsAuth) {
+                                            pendingOpenVpnPath = path
+                                        } else {
+                                            viewModel.updateConfig(config.copy(openVpnConfigPath = path))
+                                            viewModel.showToast("OpenVPN config selected", false)
+                                        }
                                     }
                                 }
                             },
+                            onOpenVpnCredentials = { showOpenVpnCredentials = true },
                             onResetAll = { viewModel.resetAllSettings() },
                             onExportBackup = { viewModel.exportFullBackup() },
                             onImportBackup = { viewModel.importFullBackup() },
@@ -270,6 +284,40 @@ fun MainScreen(viewModel: AetherViewModel) {
             ZeroTrustLoginDialog(
                 onSubmit = { viewModel.submitLoginCode(it) },
                 onDismiss = { viewModel.submitLoginCode("") },
+                scaleFactor = scaleFactor
+            )
+        }
+
+        pendingOpenVpnPath?.let { path ->
+            OpenVpnAuthDialog(
+                title = "OpenVPN Config Requires Login",
+                subtitle = "This .ovpn file needs a username and password. They will be saved so you are not asked again.",
+                initialUsername = config.openVpnUsername,
+                initialPassword = config.openVpnPassword,
+                onSave = { user, pass ->
+                    viewModel.updateConfig(
+                        config.copy(openVpnConfigPath = path, openVpnUsername = user, openVpnPassword = pass)
+                    )
+                    pendingOpenVpnPath = null
+                    viewModel.showToast("OpenVPN config and credentials saved", false)
+                },
+                onDismiss = { pendingOpenVpnPath = null },
+                scaleFactor = scaleFactor
+            )
+        }
+
+        if (showOpenVpnCredentials) {
+            OpenVpnAuthDialog(
+                title = "OpenVPN Credentials",
+                subtitle = "Used when the .ovpn config requires a login. Saved for future reconnects.",
+                initialUsername = config.openVpnUsername,
+                initialPassword = config.openVpnPassword,
+                onSave = { user, pass ->
+                    viewModel.updateConfig(config.copy(openVpnUsername = user, openVpnPassword = pass))
+                    showOpenVpnCredentials = false
+                    viewModel.showToast("OpenVPN credentials saved", false)
+                },
+                onDismiss = { showOpenVpnCredentials = false },
                 scaleFactor = scaleFactor
             )
         }
@@ -400,6 +448,138 @@ fun ZeroTrustLoginDialog(
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text("Verify", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OpenVpnAuthDialog(
+    title: String,
+    subtitle: String,
+    initialUsername: String,
+    initialPassword: String,
+    onSave: (username: String, password: String) -> Unit,
+    onDismiss: () -> Unit,
+    scaleFactor: Float
+) {
+    var username by remember { mutableStateOf(initialUsername) }
+    var password by remember { mutableStateOf(initialPassword) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.6f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {},
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .width((330 * scaleFactor).dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color(0xFF1C1C1E))
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFF9500).copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = Color(0xFFFF9500),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    fontSize = (18 * scaleFactor).sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IosNavInactiveGrey,
+                    fontSize = (13 * scaleFactor).sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Username") },
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = IosNavActiveBlue,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                        focusedLabelColor = IosNavInactiveGrey,
+                        unfocusedLabelColor = IosNavInactiveGrey,
+                        cursorColor = IosNavActiveBlue
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Password") },
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
+                    visualTransformation = PasswordVisualTransformation(),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = IosNavActiveBlue,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                        focusedLabelColor = IosNavInactiveGrey,
+                        unfocusedLabelColor = IosNavInactiveGrey,
+                        cursorColor = IosNavActiveBlue
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    androidx.compose.material3.TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Cancel", color = IosNavInactiveGrey, fontWeight = FontWeight.Medium)
+                    }
+                    androidx.compose.material3.Button(
+                        onClick = { onSave(username.trim(), password) },
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = IosNavActiveBlue),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Save", fontWeight = FontWeight.Bold)
                     }
                 }
             }

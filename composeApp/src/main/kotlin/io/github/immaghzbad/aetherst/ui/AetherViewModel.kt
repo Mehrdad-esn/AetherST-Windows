@@ -675,7 +675,7 @@ class AetherViewModel {
             try {
                 val info = withContext(Dispatchers.IO) {
                     val request = okhttp3.Request.Builder()
-                        .url("https://raw.githubusercontent.com/immaghzbad/AetherST/refs/heads/main/update.json")
+                        .url("https://raw.githubusercontent.com/Mehrdad-esn/AetherST-Windows/main/update.json")
                         .build()
 
                     NetworkClient.instance.newCall(request).execute().use { response ->

@@ -131,7 +131,7 @@ fun main() {
 
     val windowState = rememberWindowState(
         placement = WindowPlacement.Floating,
-        size = DpSize(420.dp, 700.dp)
+        size = DpSize(430.dp, 920.dp)
     )
     var appWindow by remember { mutableStateOf<ComposeWindow?>(null) }
 

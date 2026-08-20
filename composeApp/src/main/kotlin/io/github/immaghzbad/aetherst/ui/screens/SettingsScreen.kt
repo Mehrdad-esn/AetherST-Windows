@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Http
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NetworkCheck
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Repeat
@@ -94,6 +95,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -124,6 +126,7 @@ fun SettingsScreen(
     onApplyPreset: (String) -> Unit,
     onOpenRoutingRules: () -> Unit,
     onOpenVpnConfig: () -> Unit,
+    onOpenVpnCredentials: () -> Unit = {},
     onResetAll: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
@@ -311,11 +314,26 @@ fun SettingsScreen(
                                     icon = Icons.Default.VpnKey,
                                     iconBg = Color(0xFF34C759),
                                     title = "OpenVPN Config File",
-                                    value = config.openVpnConfigPath.ifEmpty { "Select .ovpn file" },
+                                    value = if (config.openVpnConfigPath.isBlank()) {
+                                        "Select .ovpn file"
+                                    } else {
+                                        config.openVpnConfigPath.substringAfterLast('\\').substringAfterLast('/')
+                                    },
                                     options = emptyList(),
                                     onOptionSelected = { },
                                     scaleFactor = scaleFactor,
                                     onClickOverride = onOpenVpnConfig
+                                )
+                                HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
+                                IosPickerRow(
+                                    icon = Icons.Default.Person,
+                                    iconBg = Color(0xFFFF9500),
+                                    title = "OpenVPN Credentials",
+                                    value = if (config.openVpnUsername.isBlank()) "Not set" else "User: ${config.openVpnUsername}",
+                                    options = emptyList(),
+                                    onOptionSelected = { },
+                                    scaleFactor = scaleFactor,
+                                    onClickOverride = onOpenVpnCredentials
                                 )
                                 HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
                             }
@@ -1211,6 +1229,8 @@ fun IosPickerRow(
                     color = IosSecondaryLabel,
                     fontWeight = FontWeight.Normal,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                     fontSize = (13 * scaleFactor).sp
                 )
                 Spacer(modifier = Modifier.width(4.dp))

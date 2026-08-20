@@ -179,7 +179,7 @@ class ConnectionController private constructor() {
                 if (cfgPath.isBlank() || !File(cfgPath).exists()) {
                     throw IllegalStateException("OpenVPN config not set (Settings -> OpenVPN Config)")
                 }
-                val connector = OpenVpnConnector(cfgPath, "127.0.0.1", proxyPort)
+                val connector = OpenVpnConnector(cfgPath, "127.0.0.1", proxyPort, config.openVpnUsername, config.openVpnPassword)
                 if (!connector.start()) {
                     throw IllegalStateException("Failed to start OpenVPN hybrid tunnel")
                 }

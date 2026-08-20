@@ -2,6 +2,6 @@
   "version": "1.4.2",
   "version_code": 1,
   "is_beta": false,
-  "changelog": "• Fixed a critical crash on Android 8 (API 26) related to OkHttp connection pool.\n• Added a new connection widget for the home screen.\n• Improved 'Tunnel Whole Device' logic to correctly override Split Tunneling settings.",
-  "release_url": "https://github.com/immaghzbad/AetherST/releases/tag/v1.4.2"
+  "changelog": "AetherST 1.4.2 for Windows.\n• OpenVPN Hybrid: upload an .ovpn config and save its username/password once - credentials are remembered for reconnects.\n• 33 automated tests covering config persistence and OpenVPN settings.\n• System tray, single-instance guard, custom title bar and MSI installer.",
+  "release_url": "https://github.com/Mehrdad-esn/AetherST-Windows/releases"
 }

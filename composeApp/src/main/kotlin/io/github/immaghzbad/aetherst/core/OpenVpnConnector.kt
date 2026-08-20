@@ -7,7 +7,9 @@ import java.io.File
 class OpenVpnConnector(
     private val configPath: String,
     private val proxyHost: String,
-    private val proxyPort: Int
+    private val proxyPort: Int,
+    private val username: String = "",
+    private val password: String = ""
 ) {
     private var process: Process? = null
     private val openVpnDir = File(AppPaths.binDir, "openvpn")
@@ -34,6 +36,17 @@ class OpenVpnConnector(
                 "--log", logFile.absolutePath,
                 "--verb", "3"
             )
+
+            if (requiresInteractiveAuth(configFile)) {
+                if (username.isBlank()) {
+                    LogRepository.e("[OpenVPN] Config requires username/password but none are set - enter them in Settings -> OpenVPN Credentials", "OpenVPN")
+                    return false
+                }
+                val authFile = File(AppPaths.dataDir, "openvpn-auth.txt")
+                authFile.writeText("$username\n$password")
+                cmd.addAll(listOf("--auth-user-pass", authFile.absolutePath))
+                LogRepository.i("[OpenVPN] Config requires login - using saved credentials for $username", "OpenVPN")
+            }
 
             val pb = ProcessBuilder(cmd)
             pb.redirectErrorStream(true)
@@ -110,5 +123,14 @@ class OpenVpnConnector(
                 "auth-nocache\n"
         )
         return wrapper
+    }
+
+    private fun requiresInteractiveAuth(configFile: File): Boolean {
+        return runCatching {
+            configFile.readLines().any { line ->
+                val trimmed = line.trim()
+                trimmed.equals("auth-user-pass", ignoreCase = true)
+            }
+        }.getOrDefault(false)
     }
 }
