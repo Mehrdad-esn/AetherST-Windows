@@ -131,7 +131,7 @@ fun main() {
 
     val windowState = rememberWindowState(
         placement = WindowPlacement.Floating,
-        size = DpSize(430.dp, 920.dp)
+        size = DpSize(432.dp, 784.dp)
     )
     var appWindow by remember { mutableStateOf<ComposeWindow?>(null) }
 
@@ -184,8 +184,9 @@ Window(
                 val screenW = with(density) { screenWidthPx.toDp() }
                 val screenH = with(density) { screenHeightPx.toDp() }
                 val winW = windowState.size.width
-                val x = pos.x.coerceIn(winW - 60.dp, screenW - 60.dp)
-                val y = pos.y.coerceAtLeast(0.dp)
+                val winH = windowState.size.height
+                val x = pos.x.coerceIn(-winW + 80.dp, screenW - 80.dp)
+                val y = pos.y.coerceIn(0.dp, screenH - 80.dp)
                 if (x != pos.x || y != pos.y) {
                     windowState.position = WindowPosition(x, y)
                 }
