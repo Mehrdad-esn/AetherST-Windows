@@ -24,6 +24,7 @@ import com.sun.jna.Function
 import com.sun.jna.NativeLibrary
 import com.sun.jna.Pointer
 import com.sun.jna.WString
+import io.github.immaghzbad.aetherst.core.Elevation
 import io.github.immaghzbad.aetherst.desktop.AppPaths
 import io.github.immaghzbad.aetherst.desktop.AetherTray
 import io.github.immaghzbad.aetherst.desktop.TrayActions
@@ -101,6 +102,10 @@ fun main() {
 
     if (!acquireSingleInstanceLock()) {
         println("AetherST is already running.")
+        return
+    }
+
+    if (!Elevation.isElevated() && Elevation.relaunchElevatedAndExit()) {
         return
     }
 

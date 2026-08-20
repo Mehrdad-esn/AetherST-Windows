@@ -40,12 +40,19 @@ object TunHelper {
 
             val helperScript = File(dataDir, "tun-helper.ps1")
             val appPid = ProcessHandle.current().pid()
-            val command = arrayOf(
-                "powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
-                "Start-Process -FilePath 'pwsh' -WindowStyle Hidden -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','${helperScript.absolutePath}','-AppPid','$appPid'"
-            )
+            val command = if (Elevation.isElevated()) {
+                arrayOf(
+                    "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden",
+                    "-File", helperScript.absolutePath, "-AppPid", "$appPid"
+                )
+            } else {
+                arrayOf(
+                    "powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
+                    "Start-Process -FilePath 'pwsh' -WindowStyle Hidden -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','${helperScript.absolutePath}','-AppPid','$appPid'"
+                )
+            }
             ProcessBuilder(*command).redirectErrorStream(true).start()
-            LogRepository.i("[Tun] Elevated helper requested (UAC), pid=$appPid")
+            LogRepository.i("[Tun] Helper started (elevated=${Elevation.isElevated()}), pid=$appPid")
 
             startTailing()
         } catch (e: Exception) {
