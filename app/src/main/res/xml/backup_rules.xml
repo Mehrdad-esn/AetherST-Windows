@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <include domain="sharedpref" path="." />
+    <include domain="file" path="." />
+    <exclude domain="file" path="aether-masque.toml" />
+    <exclude domain="file" path="aether.toml" />
+    <exclude domain="file" path="aether-secondary.toml" />
+</full-backup-content>

@@ -1,0 +1,7 @@
+{
+  "version": "1.4.2",
+  "version_code": 1,
+  "is_beta": false,
+  "changelog": "• Fixed a critical crash on Android 8 (API 26) related to OkHttp connection pool.\n• Added a new connection widget for the home screen.\n• Improved 'Tunnel Whole Device' logic to correctly override Split Tunneling settings.",
+  "release_url": "https://github.com/immaghzbad/AetherST/releases/tag/v1.4.2"
+}
