@@ -83,6 +83,13 @@ class AetherConfigRepository(private val prefs: Prefs) {
             if (legacyProxyOnly) ConnectionMode.PROXY_ONLY else ConnectionMode.PROXY_ONLY
         }
 
+        val protocol = runCatching { AetherProtocol.valueOf(protocolStr) }.getOrDefault(AetherProtocol.MASQUE)
+        val finalConnectionMode = if (protocol == AetherProtocol.OPENVPN) {
+            ConnectionMode.PROXY_ONLY
+        } else {
+            connectionMode
+        }
+
         val presetId = prefs.getString("${prefix}preset_id", "custom") ?: "custom"
 
         val socksHost = prefs.getString("${prefix}socks_host", "127.0.0.1") ?: "127.0.0.1"
@@ -90,7 +97,7 @@ class AetherConfigRepository(private val prefs: Prefs) {
 
         return AetherConfig(
             presetId = presetId,
-            protocol = runCatching { AetherProtocol.valueOf(protocolStr) }.getOrDefault(AetherProtocol.MASQUE),
+            protocol = protocol,
             noise = runCatching { AetherNoise.valueOf(noiseStr) }.getOrDefault(AetherNoise.FIREWALL),
             scanMode = runCatching { AetherScanMode.valueOf(scanModeStr) }.getOrDefault(AetherScanMode.BALANCED),
             ipMode = runCatching { AetherIpMode.valueOf(ipModeStr) }.getOrDefault(AetherIpMode.IPV4),
@@ -112,7 +119,7 @@ class AetherConfigRepository(private val prefs: Prefs) {
             noProfileRetry = prefs.getBoolean("${prefix}no_profile_retry", false),
             tlsGroups = prefs.getString("${prefix}tls_groups", "") ?: "",
             mtu = prefs.getInt("${prefix}mtu", 1100),
-            connectionMode = connectionMode,
+            connectionMode = finalConnectionMode,
             routingRules = prefs.getString("${prefix}routing_rules", null)?.let {
                 runCatching { routingRulesAdapter.fromJson(it) }.getOrNull()
             } ?: emptyList(),
@@ -134,11 +141,21 @@ class AetherConfigRepository(private val prefs: Prefs) {
 
     fun updateConfig(newConfig: AetherConfig) {
         val oldConfig = _config.value
-        val manualConfig = newConfig.copy(presetId = "custom")
+        val sanitized = if (newConfig.protocol == AetherProtocol.OPENVPN) {
+            newConfig.copy(connectionMode = ConnectionMode.PROXY_ONLY)
+        } else {
+            newConfig
+        }
+        val manualConfig = sanitized.copy(presetId = "custom")
 
         val finalConfig = if (oldConfig.protocol != manualConfig.protocol) {
             saveProtocolSettings(oldConfig)
-            loadProtocolSettings(manualConfig.protocol, manualConfig)
+            val loaded = loadProtocolSettings(manualConfig.protocol, manualConfig)
+            if (manualConfig.protocol == AetherProtocol.OPENVPN) {
+                loaded.copy(connectionMode = ConnectionMode.PROXY_ONLY)
+            } else {
+                loaded
+            }
         } else {
             saveProtocolSettings(manualConfig)
             manualConfig
@@ -313,11 +330,12 @@ class AetherConfigRepository(private val prefs: Prefs) {
                 AetherProtocol.WG -> base.copy(protocol = protocol, noise = AetherNoise.BALANCED, scanMode = AetherScanMode.TURBO, noDataCheck = true)
                 AetherProtocol.GOOL -> base.copy(protocol = protocol, noise = AetherNoise.BALANCED, scanMode = AetherScanMode.BALANCED)
                 AetherProtocol.ZERO_TRUST -> base.copy(protocol = protocol, noise = AetherNoise.OFF, scanMode = AetherScanMode.BALANCED)
-                AetherProtocol.OPENVPN -> base.copy(protocol = protocol, noise = AetherNoise.OFF, scanMode = AetherScanMode.TURBO)
+                AetherProtocol.OPENVPN -> base.copy(protocol = protocol, noise = AetherNoise.OFF, scanMode = AetherScanMode.TURBO, connectionMode = ConnectionMode.PROXY_ONLY)
             }
         }
         return base.copy(
             protocol = protocol,
+            connectionMode = if (protocol == AetherProtocol.OPENVPN) ConnectionMode.PROXY_ONLY else base.connectionMode,
             noise = runCatching { AetherNoise.valueOf(prefs.getString("${p}noise", "")!!) }.getOrDefault(base.noise),
             scanMode = runCatching { AetherScanMode.valueOf(prefs.getString("${p}scan_mode", "")!!) }.getOrDefault(base.scanMode),
             ipMode = runCatching { AetherIpMode.valueOf(prefs.getString("${p}ip_mode", "")!!) }.getOrDefault(base.ipMode),

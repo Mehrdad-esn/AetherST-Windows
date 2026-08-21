@@ -137,7 +137,27 @@ class ConnectionController private constructor() {
 
             _status.value = ConnectionStatus.RUNNING
 
-            if (config.connectionMode == ConnectionMode.PROXY_ONLY) {
+            // When OpenVPN is selected, skip AetherST's own TUN/bridge setup.
+            // OpenVPN creates its own TUN adapter and tunnels the system itself.
+            // We only need the WireGuard core's SOCKS/HTTP proxy to be running.
+            if (config.protocol == AetherProtocol.OPENVPN) {
+                val httpPort = config.httpPort.toIntOrNull() ?: 1820
+                LogRepository.i("[Controller] OpenVPN Hybrid mode — skipping AetherST TUN (OpenVPN will create its own)")
+                LogRepository.i("[Controller] WireGuard proxy ready at SOCKS:$proxyPort / HTTP:$httpPort")
+
+                startTimer()
+                LogRepository.i("[Controller] Core is active — starting OpenVPN connector")
+
+                val cfgPath = config.openVpnConfigPath
+                if (cfgPath.isBlank() || !File(cfgPath).exists()) {
+                    throw IllegalStateException("OpenVPN config not set (Settings -> OpenVPN Config)")
+                }
+                val connector = OpenVpnConnector(cfgPath, "127.0.0.1", proxyPort, httpPort, config.openVpnUsername, config.openVpnPassword)
+                if (!connector.start()) {
+                    throw IllegalStateException("Failed to start OpenVPN hybrid tunnel")
+                }
+                openVpnConnector = connector
+            } else if (config.connectionMode == ConnectionMode.PROXY_ONLY) {
                 val engine = RoutingEngine(config.routingRules)
                 routingEngine = engine
                 LogRepository.i("[Controller] HTTP proxy served natively by core (--http-proxy :${config.httpPort.toIntOrNull() ?: 1820})")
@@ -145,6 +165,9 @@ class ConnectionController private constructor() {
                 if (!verifyPortListening("127.0.0.1", httpPort)) {
                     LogRepository.w("[Controller] Core HTTP proxy port $httpPort is not listening yet")
                 }
+
+                startTimer()
+                LogRepository.i("[Controller] Core is active and validated")
             } else if (config.connectionMode == ConnectionMode.TUNNEL) {
                 val engine = RoutingEngine(config.routingRules)
                 routingEngine = engine
@@ -169,21 +192,9 @@ class ConnectionController private constructor() {
                 if (!tunUp) {
                     LogRepository.w("[Controller] SOCKS bridge did not come up in time")
                 }
-            }
 
-            startTimer()
-            LogRepository.i("[Controller] Core is active and validated")
-
-            if (config.protocol == AetherProtocol.OPENVPN) {
-                val cfgPath = config.openVpnConfigPath
-                if (cfgPath.isBlank() || !File(cfgPath).exists()) {
-                    throw IllegalStateException("OpenVPN config not set (Settings -> OpenVPN Config)")
-                }
-                val connector = OpenVpnConnector(cfgPath, "127.0.0.1", proxyPort, config.openVpnUsername, config.openVpnPassword)
-                if (!connector.start()) {
-                    throw IllegalStateException("Failed to start OpenVPN hybrid tunnel")
-                }
-                openVpnConnector = connector
+                startTimer()
+                LogRepository.i("[Controller] Core is active and validated")
             }
         } catch (e: Exception) {
             LogRepository.e("[Controller] Startup failed: ${e.localizedMessage}")

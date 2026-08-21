@@ -188,11 +188,16 @@ class AetherViewModel {
     }
 
     fun updateConfig(newConfig: AetherConfig) {
+        val sanitized = if (newConfig.protocol == AetherProtocol.OPENVPN) {
+            newConfig.copy(connectionMode = ConnectionMode.PROXY_ONLY)
+        } else {
+            newConfig
+        }
         val oldConfig = repository.config.value
-        repository.updateConfig(newConfig)
+        repository.updateConfig(sanitized)
 
-        if (oldConfig.connectionMode != newConfig.connectionMode) {
-            switchMode(oldConfig.connectionMode, newConfig.connectionMode)
+        if (oldConfig.connectionMode != sanitized.connectionMode) {
+            switchMode(oldConfig.connectionMode, sanitized.connectionMode)
         }
     }
 

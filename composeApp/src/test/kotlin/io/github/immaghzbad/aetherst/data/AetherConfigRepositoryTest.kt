@@ -103,6 +103,20 @@ class AetherConfigRepositoryTest {
         assertEquals(AetherProtocol.OPENVPN, reloaded.protocol)
         assertEquals(AetherNoise.OFF, reloaded.noise)
         assertEquals(AetherScanMode.TURBO, reloaded.scanMode)
+        assertEquals(ConnectionMode.PROXY_ONLY, reloaded.connectionMode)
+    }
+
+    @Test
+    fun `openvpn forces proxy only mode even if tunnel was set`() {
+        val repo = freshRepository()
+        repo.updateConfig(repo.config.value.copy(connectionMode = ConnectionMode.TUNNEL))
+        assertEquals(ConnectionMode.TUNNEL, repo.config.value.connectionMode)
+
+        repo.updateConfig(repo.config.value.copy(protocol = AetherProtocol.OPENVPN))
+        assertEquals(ConnectionMode.PROXY_ONLY, repo.config.value.connectionMode)
+
+        val reloaded = freshRepository().config.value
+        assertEquals(ConnectionMode.PROXY_ONLY, reloaded.connectionMode)
     }
 
     @Test

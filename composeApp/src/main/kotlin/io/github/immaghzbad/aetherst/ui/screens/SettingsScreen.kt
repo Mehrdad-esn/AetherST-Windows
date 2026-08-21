@@ -287,16 +287,22 @@ fun SettingsScreen(
                     IosSectionHeader(title = "CONNECTION & ROUTING", scaleFactor = scaleFactor)
                     IosGroupCard {
                         Column {
+                            val isOpenVpn = config.protocol == AetherProtocol.OPENVPN
                             IosPickerRow(
                                 icon = Icons.Default.VpnLock,
-                                iconBg = Color(0xFF34C759),
+                                iconBg = if (isOpenVpn) Color(0xFF8E8E93) else Color(0xFF34C759),
                                 title = "Connection Mode",
+                                subtitle = if (isOpenVpn) "Locked to Proxy Only for OpenVPN Hybrid" else null,
                                 value = if (config.connectionMode == ConnectionMode.TUNNEL) "Tunnel" else "Proxy Only",
-                                options = listOf("Tunnel", "Proxy Only"),
+                                options = if (isOpenVpn) emptyList() else listOf("Tunnel", "Proxy Only"),
                                 onOptionSelected = { index ->
                                     onUpdateConfig(config.copy(connectionMode = if (index == 0) ConnectionMode.TUNNEL else ConnectionMode.PROXY_ONLY))
                                 },
-                                scaleFactor = scaleFactor
+                                scaleFactor = scaleFactor,
+                                enabled = !isOpenVpn,
+                                onClickOverride = if (isOpenVpn) {
+                                    { onShowToast("Connection mode is locked to Proxy Only for OpenVPN Hybrid", false) }
+                                } else null
                             )
                             HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
                             IosPickerRow(
@@ -305,7 +311,11 @@ fun SettingsScreen(
                                 title = "Transport Protocol",
                                 value = config.protocol.displayName,
                                 options = AetherProtocol.entries.map { it.displayName },
-                                onOptionSelected = { index -> onUpdateConfig(config.copy(protocol = AetherProtocol.entries[index])) },
+                                onOptionSelected = { index ->
+                                    val selectedProto = AetherProtocol.entries[index]
+                                    val newMode = if (selectedProto == AetherProtocol.OPENVPN) ConnectionMode.PROXY_ONLY else config.connectionMode
+                                    onUpdateConfig(config.copy(protocol = selectedProto, connectionMode = newMode))
+                                },
                                 scaleFactor = scaleFactor
                             )
                             HorizontalDivider(color = IosDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(start = (50 * scaleFactor).dp))
@@ -1192,7 +1202,9 @@ fun IosPickerRow(
     options: List<String>,
     onOptionSelected: (Int) -> Unit,
     scaleFactor: Float = 1f,
-    onClickOverride: (() -> Unit)? = null
+    onClickOverride: (() -> Unit)? = null,
+    enabled: Boolean = true,
+    subtitle: String? = null
 ) {
     var expanded by remember { mutableStateOf(value = false) }
 
@@ -1201,7 +1213,11 @@ fun IosPickerRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable {
-                    if (onClickOverride != null) onClickOverride() else expanded = true
+                    if (onClickOverride != null) {
+                        onClickOverride()
+                    } else if (enabled && options.isNotEmpty()) {
+                        expanded = true
+                    }
                 }
                 .padding(horizontal = (16 * scaleFactor).dp, vertical = (14 * scaleFactor).dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1213,20 +1229,30 @@ fun IosPickerRow(
             ) {
                 IosIconBadge(icon = icon, backgroundColor = iconBg, scaleFactor = scaleFactor)
                 Spacer(modifier = Modifier.width((12 * scaleFactor).dp))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.White,
-                    fontSize = (15 * scaleFactor).sp
-                )
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White.copy(alpha = if (enabled) 1f else 0.7f),
+                        fontSize = (15 * scaleFactor).sp
+                    )
+                    if (!subtitle.isNullOrEmpty()) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = IosSecondaryLabel.copy(alpha = if (enabled) 1f else 0.8f),
+                            fontSize = (11 * scaleFactor).sp
+                        )
+                    }
+                }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = value,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = IosSecondaryLabel,
+                    color = if (enabled) IosSecondaryLabel else IosSecondaryLabel.copy(alpha = 0.6f),
                     fontWeight = FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1234,35 +1260,46 @@ fun IosPickerRow(
                     fontSize = (13 * scaleFactor).sp
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = IosSecondaryLabel,
-                    modifier = Modifier.size((18 * scaleFactor).dp)
-                )
+                if (enabled && (options.isNotEmpty() || onClickOverride != null)) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = IosSecondaryLabel,
+                        modifier = Modifier.size((18 * scaleFactor).dp)
+                    )
+                } else if (!enabled) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = IosSecondaryLabel.copy(alpha = 0.5f),
+                        modifier = Modifier.size((14 * scaleFactor).dp)
+                    )
+                }
             }
         }
 
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.background(IosGroupBackground)
-        ) {
-            options.forEachIndexed { index, option ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = option,
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontSize = (14 * scaleFactor).sp
-                        )
-                    },
-                    onClick = {
-                        onOptionSelected(index)
-                        expanded = false
-                    }
-                )
+        if (enabled && options.isNotEmpty()) {
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.background(IosGroupBackground)
+            ) {
+                options.forEachIndexed { index, option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = option,
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontSize = (14 * scaleFactor).sp
+                            )
+                        },
+                        onClick = {
+                            onOptionSelected(index)
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
     }
