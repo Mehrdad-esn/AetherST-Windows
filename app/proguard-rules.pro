@@ -21,3 +21,15 @@
 -dontwarn okhttp3.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+
+-keep class io.github.immaghzbad.aetherst.** { *; }
+
+-keep public class * extends android.app.Application {
+    <init>();
+    void onCreate();
+}
+
+-keep public class * extends android.app.Activity {
+    <init>();
+    void onCreate(android.os.Bundle);
+}

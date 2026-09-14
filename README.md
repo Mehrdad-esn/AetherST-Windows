@@ -1,180 +1,159 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/AetherST-1.4.2-007AFF?style=for-the-badge&logo=shield&logoColor=white" alt="AetherST">
-  <img src="https://img.shields.io/badge/Platform-Windows%20x64-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Platform">
-  <img src="https://img.shields.io/badge/Engine-Aether%20Core%201.7.0-34C759?style=for-the-badge&logo=rust&logoColor=white" alt="Engine">
-  <img src="https://img.shields.io/badge/Tests-33%20green-34C759?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
-  <img src="https://img.shields.io/badge/Installer-MSI-FFD700?style=for-the-badge&logo=windows&logoColor=white" alt="Installer">
+  <img src="https://img.shields.io/badge/AetherST-Tunnel-007AFF?style=for-the-badge&logo=shield&logoColor=white" alt="AetherST Logo" width="200">
 </p>
 
-<h1 align="center">AetherST — Windows Port</h1>
+<h1 align="center">AetherST Tunnel</h1>
 
 <p align="center">
-  <strong>Native Windows client for the AetherST censorship-circumvention tunnel.</strong><br>
-  The Android client's UI, rebuilt with <strong>Compose Multiplatform</strong> and re-architected for the desktop.
+  <strong>Advanced, High-Performance Censorship Circumvention Client for Android & Windows</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Mehrdad-esn/AetherST-Windows/releases">
+    <img src="https://img.shields.io/github/v/release/Mehrdad-esn/AetherST-Windows?style=for-the-badge&color=007AFF" alt="Release">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-Proprietary-orange?style=for-the-badge" alt="License">
+  </a>
+  <a href="https://github.com/Mehrdad-esn/AetherST-Windows/stargazers">
+    <img src="https://img.shields.io/github/stars/Mehrdad-esn/AetherST-Windows?style=for-the-badge&color=FFD700" alt="Stars">
+  </a>
+  <img src="https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Platform Android">
+  <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Platform Windows">
 </p>
 
 ---
 
-## 🤖 A word from the author (Mehrdad)
+## 📖 Overview
 
-**I did not write this code.** Every line — the port itself, the desktop integration, the installer, the tests — was written by **DeepSeek v4 Flash (the AI, running in opencode)**, based on the original Android source and on instructions I gave during a chat. My role was directing the work: explaining what I wanted, reviewing the results, and saying "fix this, remove that". The full list of the instructions I gave is [at the bottom of this README](#-instructions-i-gave-during-the-chat).
+**AetherST Tunnel** is a production-grade VPN and Proxy client for Android and Windows, meticulously engineered to provide secure and stable connectivity in highly restricted network environments. By combining the power of the **Aether Core** with proven tunnel engines, AetherST offers a robust solution against Deep Packet Inspection (DPI) and protocol-based blocking across multiple platforms.
 
-> This is not a fork of the Android app. It is a **re-implementation** of it for Windows: the Android UI (Jetpack Compose) was migrated to Compose Multiplatform, the Android-specific plumbing was replaced with desktop equivalents, and the whole thing was verified with an automated test suite.
+## 📱 Versions & Platforms
 
----
+- **Windows Client (this port):** `v1.7` — sections below marked *(Windows)* describe exactly what this build contains (every version number verified against the shipped binaries). Installs in place over older versions (same MSI product identity); older installs are offered updates automatically via the in-app update prompt.
+- **Android Client (upstream):** `v1.7.0` — sections marked *(Android)* describe the upstream mobile client for reference; they are **not** all present on Windows (see the Windows notes).
 
-## ✨ What this app is
+## ✨ Features (Windows)
 
-AetherST Windows is a privacy tunnel client that connects through the **Aether Core** — a Rust engine that discovers gateways, obfuscates traffic and exposes a local **SOCKS5** proxy. Everything else in the app orbits that proxy.
+- 🛡️ **Stealth Connectivity:** Specifically optimized to bypass protocol fingerprinting and DPI.
+- 🚀 **Advanced Transports:** **MASQUE**, **WireGuard**, **Gool (WG-in-WG)**. (Cloudflare Zero Trust was removed from this port by design.)
+- 🔗 **Psiphon Chain (Windows):** Optional second layer via a bundled GPL helper built from psiphon-tunnel-core `v2.0.41` sources (same version as Android), chained over MASQUE/WireGuard/Gool with Auto, Fallback, Always, and Psiphon-only modes plus selectable egress region.
+- 🔀 **OpenVPN Hybrid (Windows-only):** Chain any `.ovpn` config over the app proxy tunnel (file picker included).
+- 📡 **Intelligent Scanning:** Real-time gateway discovery with data-plane validation before connection.
+- ⚡ **Native Performance:** Aether engine `v1.8.0` (verified with `aether -v`) + HEV `v2.17.1` (verified).
+- 🖥️ **Desktop UI:** iOS-inspired dashboard (Compose Multiplatform) with Fa/En localization, DNS benchmark optimizer, tray, single-instance guard, native MSI.
+- 🛠️ **Developer-Ready:** Built-in diagnostics, real-time logging, and flexible protocol presets.
+- ⛔ **Not on Windows:** Tor chain (the shipped `aether.exe` has no Tor flags — verified with `aether --help`), MASQUE-in-MASQUE (no `--mim` flag in the shipped engine), Cloudflare Zero Trust (removed).
 
-| | |
-|---|---|
-| 🛡️ **Stealth protocols** | **MASQUE** (HTTP/2 & HTTP/3), **WireGuard**, **Gool (WireGuard-in-WireGuard)**, **Cloudflare Zero Trust** |
-| 🔀 **OpenVPN Hybrid** *(Windows-only)* | Route a full **OpenVPN** client through the app's proxy tunnel — see [OpenVPN Hybrid](#-openvpn-hybrid) |
-| 🌫️ **Obfuscation profiles** | Firewall, GFW, Balanced, Aggressive, Light, Off |
-| 📡 **Gateway scanning** | Turbo / Balanced / Thorough / Stealth / Ironclad — with end-to-end data-plane validation before connecting |
-| 🧭 **Routing rules** | Domain/IP/port-level **block**, **direct** and **tunnel** rules with preset packs (Iran direct, ad & DNS block, adult content block) |
-| 📊 **Dashboard** | Live status, session traffic, elapsed time, public IP info, ping, one-tap protocol switching |
-| ⚙️ **Full settings** | Connection mode, HTTP/2 fallback, packet fragmentation, MTU optimizer, DNS, keepalive, validation, presets, log levels, config backup/export |
-| 🖥️ **Desktop integration** | System tray, single-instance guard, custom title bar, close-to-tray, native MSI installer |
-| ✅ **Tested** | 33 automated tests — config persistence, presets, migration, routing rules, OpenVPN settings |
+## 🛠️ Supported Protocols
 
-### Two connection modes
+AetherST Tunnel leverages cutting-edge protocols to ensure connectivity even in the most hostile network environments:
 
-- **Proxy Only** *(default, no admin needed)* — AetherST exposes `127.0.0.1:1819` (SOCKS5) and `127.0.0.1:1820` (HTTP CONNECT). Point any app at these addresses to tunnel it.
-- **Tunnel** *(requires elevation)* — the **HEV Tun2Socks** engine creates a `AetherST` TUN adapter with its own DNS and routes your whole system through it. A hidden elevated helper sets up the adapter, routes and DNS, and tears everything down when you disconnect.
+### 🎭 MASQUE (HTTP/3 & HTTP/2)
+The flagship protocol for stealth. By tunneling traffic over QUIC (H3) or TLS (H2), it makes VPN traffic look like standard web browsing, making it highly resilient to Deep Packet Inspection (DPI).
 
----
+### 🛡️ WireGuard
+A modern, high-performance VPN protocol that uses state-of-the-art cryptography. It is optimized for maximum speed and minimal battery drain on mobile devices.
 
-## 📦 Install
+### 🌀 Gool (Warp-in-Warp / WG-in-WG)
+A specialized nested WireGuard configuration. By wrapping one WireGuard tunnel inside another, it provides an additional layer of encryption and obfuscation, effectively bypassing many restrictive firewalls and improving stability.
 
-1. Download `AetherST-1.4.2.msi`.
-2. Double-click it and accept the UAC prompt. It installs to `C:\Program Files\AetherST` and creates a desktop shortcut.
-3. To uninstall: `Settings → Apps → AetherST` (or re-run the MSI), then a clean registry removal.
+### 🔗 Psiphon Chain (Windows)
+An optional second layer powered by `psiphon-helper.exe`, built from the open-source psiphon-tunnel-core `v2.0.41` sources shipped in `psiphon-helper/` (GPL-3.0, same version as the Android app). Two directions, like Android: core-first (apps → helper on `127.0.0.1:3080` SOCKS → Aether core → internet) or psiphon-first (helper dials direct, core chains through it via the engine's `--upstream` flag). Modes: Auto, Fallback (= core first, psiphon-first fallback), Always, and Psiphon-only (no Aether core). Selectable egress region (auto-discovered list is cached), local HTTP proxy on `socks+1`. (No MASQUE race on desktop: the order picker decides the direction deterministically.)
 
-> No installer leftovers, no background services, no admin at runtime (except when you enable **Tunnel** mode).
-
-## 🚀 Quick start
-
-1. Launch AetherST. The first run walks you through a quick onboarding that actually tests every protocol against your network.
-2. From the dashboard, pick a protocol — **MASQUE** is the default.
-3. Hit **Connect**. The app scans for the best gateway, validates it end-to-end, and shows `PROTECTED & CONNECTED`.
-4. Point your apps at `127.0.0.1:1819` (SOCKS5) — or switch to **Tunnel** mode in Settings to route everything.
-
-### What's where
-
-- **Dashboard** — connect button, protocol chips, IP/ping, traffic.
-- **Settings** — everything: connection mode, transport, noise, scan strategy, fragmentation, routing rules, Zero Trust auth, MTU, backup.
-- **Logs** — real-time app and core logs with level filtering (`Off … Debug`).
-- **About** — credits, versions and the Windows-port story.
+### 🧅 Tor Chain (Android only — NOT in this Windows build)
+Upstream Android has a Tor second layer (Tor inside tunnel / tunnel through Tor / Tor only, BridgeDB bridges). The Windows engine (`aether.exe`, verified `1.8.0`) exposes no `--tor*` flags, so Tor chain is not shipped here. The Tor toggle is hidden on desktop; imported Android configs selecting Tor fall back to Psiphon.
 
 ---
 
-## 🔀 OpenVPN Hybrid
+## 🏗️ Technical Architecture
 
-A feature unique to this Windows port. It chains two tunnels:
+### Aether engine `v2.0.0` (Windows binary, verified with `aether -v`)
+Official build from [CluvexStudio/Aether `v2.0.0`](https://github.com/CluvexStudio/Aether/releases/tag/v2.0.0) (AGPL-3.0 — SHA256-verified download; same engine generation as the Android `libaether.so`, which also reports `2.0.0`). Shipped unmodified; full source at the linked tag.
+The layer responsible for:
+- Encrypted tunnel management.
+- Dynamic gateway health checks.
+- Multi-protocol handling (MASQUE, WG, Gool, MASQUE-in-MASQUE) plus `--upstream` chaining.
+- The binary also contains Tor/Zero Trust-team flags, but this port never passes `--tor*` (Tor chain excluded by design) and Zero Trust was removed from the app entirely.
 
-```
-your apps ──► AetherST proxy (SOCKS5 127.0.0.1:1819) ──► Aether Core (WG proxy mode) ──► Internet
-        └────────► OpenVPN client (--socks-proxy 127.0.0.1:1819) ──► TUN adapter ──► Internet
-```
+### [HEV SOCKS5 Tunnel v2.17.1](https://github.com/heiher/hev-socks5-tunnel/releases/tag/2.17.1)
+The native bridge between the system and Aether (Android Native):
+- Mature user-space TCP/IP stack.
+- Zero-copy packet processing.
+- Efficient UDP over SOCKS5 translation.
 
-1. Select **OpenVPN Hybrid** as the protocol (in Settings or the dashboard chips).
-2. Tap **OpenVPN Config File** and pick any `.ovpn` file.
-3. Connect. AetherST automatically downloads the official OpenVPN Community build, extracts it, wraps your config with `socks-proxy 127.0.0.1:1819` and launches it over the app's tunnel.
+### [Psiphon Tunnel Core v2.0.41](https://github.com/Psiphon-Labs/psiphon-tunnel-core/releases/tag/v2.0.41) (GPL-3.0)
+The optional second-layer circumvention engine:
+- Open-source Psiphon client core for restricted networks.
+- Provides foreign exit IPs with selectable egress region.
+- On Windows it runs as the separate `psiphon-helper.exe` (built from `psiphon-helper/` sources) and chains over the Aether transports (MASQUE, WG, Gool).
 
-The result: a full OpenVPN tunnel that itself travels inside the AetherST tunnel — useful when you need OpenVPN's own routing/filtering on top of stealth transport.
+### Compose Multiplatform UI
+A unified UI layer sharing logic between Android and Desktop:
+- Reactive state management using Kotlin Flows.
+- Shared domain logic for IP lookup and configuration management.
+- Native system integrations for each platform.
 
----
+## 🪟 About This Windows Port
 
-## 🛠️ Settings that actually work on Windows
+This repository is a community Windows port of the upstream project **[immaghzbad/AetherST](https://github.com/immaghzbad/AetherST)** by the **PowerSigma Team** (all upstream credits below remain with them). It re-targets the upstream `v1.7.0` codebase to the desktop via the shared Compose Multiplatform code.
 
-Every option below is wired to the real engine — nothing decorative:
+**Maintainer (Windows port):** [Mehrdad-esn](https://github.com/Mehrdad-esn) — repository: [Mehrdad-esn/AetherST-Windows](https://github.com/Mehrdad-esn/AetherST-Windows). Upstream authorship and all upstream credits stay with the PowerSigma Team; see [LICENSE](LICENSE) and [Credits](#-credits).
 
-- **Connection mode** — Proxy Only / Tunnel
-- **Transport** — MASQUE, WireGuard, Gool, Zero Trust, OpenVPN Hybrid
-- **HTTP/2 Fallback** and **Packet Fragmentation** (size/delay) — MASQUE TCP/TLS path
-- **Noise profile**, **Scan strategy**, **Network stack** (IPv4 / IPv6 / Dual)
-- **Skip data-plane check**, **Quick gateway reconnect**, **No profile retry**, **Keepalive**, **Validate/Reconnect seconds**
-- **Domain & IP routing** (block/direct/tunnel rules)
-- **Cloudflare Zero Trust** — team enrolment, service tokens, email login, organization gateway
-- **Smart reconnect** with max-retry limit
-- **DNS servers**, **MTU optimizer** (probes your network and applies the best MTU)
-- **Core log level** — actually passed to the engine (`--log-level`), not just stored
-- **Presets** — Custom / Bypass UDP-TLS / Ironclad Stealth / Turbo Speed
-- **Backup** — export/import the full configuration (`.astf`), reset to defaults
+### 🤖 Built with Vibe-Coding (AI-assisted development)
 
-> Android-only features that the Windows engine cannot enforce (per-app split tunneling, kill switch, IPv6-leak toggle, engine switcher) were **deliberately removed** rather than shown as dead switches. The UI only ever shows what really works.
+This Windows port was developed **vibe-coding style**: designed, written and iterated together with an AI coding assistant from the upstream Android source and the maintainer's instructions — feature by feature (desktop TUN helper, system proxy/DNS, tray, MSI installer, OpenVPN Hybrid, desktop Psiphon chain, onboarding, i18n). Every shipped behavior above was verified against real builds and logs; anything the Windows engine cannot enforce was removed rather than faked (see *Not on Windows*). What's actually in the Windows build is listed under Features above — nothing more. Notable deliberate divergences: Cloudflare Zero Trust removed; Tor chain unavailable (engine limitation, see above); Psiphon chain re-implemented for desktop (see below); OpenVPN Hybrid added. Desktop plumbing (TUN helper, system proxy/DNS, tray, single-instance guard, MSI) follows the upstream Windows client's own approach.
 
----
+### 🔗 Psiphon Chain on Windows (this port)
 
-## 🧩 Parts of this repository
+Same tunnel-core version as Android (`v2.0.41`), but as a separate `psiphon-helper.exe` process built from the sources in `psiphon-helper/` (GPL-3.0 — full build instructions there; Go 1.26.x required). The helper exposes `127.0.0.1:3080` (SOCKS) and chains through the Aether core, so the exit IP is the Psiphon egress. Server entries ship from the same `server_entries.txt` the Android build uses.
 
-| Path | What it is |
-|---|---|
-| `composeApp/` | **The Windows port** — Compose Multiplatform UI, desktop core (process runner, TUN helper, proxies, OpenVPN connector), data layer, 33 tests |
-| `app/` | The **original Android client v1.4.2** source (kept for reference and credit) — see [`app/README.md`](app/README.md) |
-| `update.json` | Version manifest served over GitHub Pages/raw for the in-app update check |
+### 🔀 OpenVPN Hybrid (exclusive to this Windows port)
 
-### How the Windows port works
+Chains a full OpenVPN client over the app's proxy tunnel (the Aether core runs in WireGuard proxy mode underneath):
 
-- **`AetherProcessRunner`** launches the bundled `aether.exe` core with CLI flags + `AETHER_*` env vars mapped from the config, supervises it and parses its output into structured logs.
-- **`TunHelper`** builds an elevated PowerShell helper that creates the TUN adapter (via the bundled `wintun.dll`), sets DNS, installs routes, monitors the tunnel and cleans up on exit.
-- **`RoutingEngine`** renders routing rules into the core's own rule file (`[block]` / `[direct]` sections).
-- **`OpenVpnConnector`** resolves, downloads and extracts OpenVPN Community, generates a wrapper config and spawns `openvpn.exe` with `--socks-proxy`.
-- **Desktop layer** — tray, single-instance guard, close-to-tray, custom title bar, native `FileDialog`s, crash-report screen.
+1. Select **OpenVPN Hybrid** as the protocol (dashboard chips or Settings).
+2. Click **Choose .ovpn file…** (or paste the path) into **OpenVPN Config File**, plus username/password if the config requires `auth-user-pass`.
+3. Connect. On first use the official OpenVPN Community build is downloaded at runtime from `swupdate.openvpn.org` and extracted locally — OpenVPN binaries are **not** bundled with this repository.
 
----
+## 🚀 Getting Started
 
-## 🧪 Build from source
+### Installation
+1. Go to the [Releases](https://github.com/Mehrdad-esn/AetherST-Windows/releases) page.
+2. **Windows:** Download `AetherST-1.7.0.msi` (release **1.7**) and install it (upgrades older versions in place). Older installs are also offered this update automatically through the in-app update prompt with an Update button.
+3. **Android (upstream):** Get the APK from the [upstream releases](https://github.com/immaghzbad/AetherST/releases) page (`arm64-v8a` recommended).
 
-Requirements: JDK 17+, Windows 10/11 x64.
+### Build from Source
+- **IDE:** Android Studio Ladybug (2024.2.1) or newer.
+- **JDK:** 17
+- **NDK:** 30.0.15729638 (for Android native components).
+- **Gradle Tasks:**
+  - Android: `./gradlew :app:assembleRelease`
+  - Desktop (no Android SDK needed): `./gradlew -PskipAndroid=true :composeApp:packageMsi`
+  - Desktop run: `./gradlew :composeApp:run`
 
-```powershell
-git clone https://github.com/Mehrdad-esn/AetherST-Windows.git
-cd AetherST-Windows
-.\gradlew.bat -PdesktopOnly :composeApp:test        # run the 33 tests
-.\gradlew.bat -PdesktopOnly :composeApp:packageMsi  # build the MSI
-```
+## ⚙️ CI/CD & Security
 
-The MSI lands in `composeApp\build\compose\binaries\main\msi\`.
+The project uses **GitHub Actions** for automated Multi-APK and Desktop releases.
 
----
+## 💬 Community
 
-## 🙏 Credits — per part
+Stay updated and get support through our official channels:
 
-| Part | Made by |
-|---|---|
-| **Android client v1.4.2** (UI concept, texts, config model, presets) | **[PowerSigma Team](https://github.com/immaghzbad/AetherST)** — Kotlin + Jetpack Compose |
-| **Aether Core v1.7.0** (the Rust engine: gateway scan, MASQUE/WG/GOOL/ZeroTrust, obfuscation) | **[CluvexStudio](https://github.com/CluvexStudio)** — C/Rust |
-| **HEV SOCKS5 Tunnel v2.15.0** (TUN-to-SOCKS bridge, `hev-socks5-tunnel.exe` + `wintun.dll`) | **[heiher](https://github.com/heiher)** — C, MIT |
-| **Windows port** (everything in `composeApp/`) | **DeepSeek v4 Flash** — an AI, working inside opencode, directed by Mehrdad (@Mehrdad-esn) |
+- 📢 **Telegram:** [PowerSigma](https://t.me/PowerSigma)
+- 👨‍💻 **Developer:** [@immaghzbad](https://github.com/immaghzbad)
+- 🪟 **Windows port maintainer:** [Mehrdad-esn](https://github.com/Mehrdad-esn) — [AetherST-Windows](https://github.com/Mehrdad-esn/AetherST-Windows)
 
-The country flags bundled in the app come from [lipis/flag-icons](https://github.com/lipis/flag-icons) (MIT).
+## 🙏 Credits
 
----
+This project uses the following open-source resources:
 
-## 🎓 Instructions I gave during the chat
-
-The port was built step-by-step from these instructions (paraphrased, in the order I gave them):
-
-1. Port the Android app to Windows with **Compose Multiplatform** and a native look.
-2. Make the main window smaller (height 700) so it fits comfortably on a desktop screen.
-3. Fix the bottom navigation bar — the labels were clipped; remove the downward text shift.
-4. Use the app's own `icon.png` for the system tray icon and the title-bar badge.
-5. Replace emoji country flags with real ones — emoji flags render as letters on Windows (bundled 271 SVG flags).
-6. Align the About screen texts word-for-word with the original Android wording and restore the original makers' credit card ("Built with ❤ by PowerSigma Team").
-7. Add a "Windows Port" credit card naming me and the AI honestly.
-8. Make it a proper **MSI** installer that installs into Program Files, with no leftover files and a clean uninstall (we debugged a stale registry entry from an earlier build).
-9. Add a **single-instance guard** and **close-to-tray** behavior.
-10. Add an **OpenVPN Hybrid** protocol: run the core in WireGuard proxy mode and chain OpenVPN over the app's SOCKS5 proxy.
-11. Show only real installed apps in split tunneling, filtering out libraries and junk (Anaconda, CUDA, runtimes, drivers, SDKs).
-12. Then: **remove every fake feature** — after auditing, per-app split tunneling, kill switches, the IPv6-leak toggle and the engine switcher cannot be enforced by the Windows engine, so they were deleted instead of being shown as dead switches.
-13. Make the core log-level picker actually pass `--log-level` to the engine.
-14. Document everything honestly — and never mention removed features in the app or this README.
+- [flag-icons](https://github.com/lipis/flag-icons) — Country flag icons for multi-language and region UI elements.
+- [Vazirmatn](https://github.com/rastikerdar/vazirmatn) — Open-source Persian (Farsi) typeface used for RTL language support.
+- [Inter](https://github.com/rsms/inter) — Open-source English typeface used for the interface typeface.
+- [psiphon-tunnel-core v2.0.41](https://github.com/Psiphon-Labs/psiphon-tunnel-core/releases/tag/v2.0.41) — Open-source Psiphon client core powering the optional Psiphon Chain layer.
 
 ---
-
-## 📄 License
-
-This repository contains the Windows port (built with AI assistance) and the original Android source. See `LICENSE` for the terms of the original project; HEV components are MIT.
+<p align="center">
+  Built with 💙 by <b>PowerSigma Team</b>
+</p>

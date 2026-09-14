@@ -1,49 +1,143 @@
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import com.android.build.api.dsl.LibraryExtension
 
 plugins {
-  alias(libs.plugins.kotlin.jvm)
-  alias(libs.plugins.kotlin.compose)
-  alias(libs.plugins.compose.multiplatform)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.jetbrains.compose)
+    alias(libs.plugins.kotlin.compose)
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.1.0"
+}
+
+val isAndroidDisabled = providers.gradleProperty("skipAndroid").getOrElse("false") == "true"
+
+if (!isAndroidDisabled) {
+    apply(plugin = "com.android.library")
 }
 
 kotlin {
-  jvmToolchain(17)
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+    if (!isAndroidDisabled) {
+        androidTarget {
+            compilerOptions {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+            }
+        }
+    }
+
+    jvm("desktop")
+
+    sourceSets {
+        all {
+            languageSettings.optIn("kotlin.ExperimentalMultiplatform")
+        }
+        commonMain.dependencies {
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material3)
+            implementation(compose.ui)
+            implementation(compose.materialIconsExtended)
+            implementation(compose.components.resources)
+            implementation(compose.components.uiToolingPreview)
+            implementation(libs.androidx.lifecycle.viewmodel.compose)
+            implementation(libs.androidx.lifecycle.runtime.compose)
+            implementation(libs.androidx.navigation.compose)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.okhttp)
+            implementation(libs.okio)
+            implementation(libs.moshi.kotlin)
+            implementation(libs.kotlinx.serialization.json)
+        }
+        if (!isAndroidDisabled) {
+            androidMain.dependencies {
+                implementation(libs.androidx.core.ktx)
+                implementation(libs.androidx.activity.compose)
+                implementation(libs.kotlinx.coroutines.android)
+                implementation(libs.androidx.datastore.preferences)
+                implementation(libs.androidsvg)
+            }
+        }
+        getByName("desktopMain").dependencies {
+            implementation(compose.desktop.currentOs)
+            implementation(libs.kotlinx.coroutines.swing)
+        }
+    }
 }
 
-dependencies {
-  implementation(compose.desktop.currentOs)
-  implementation(compose.material3)
-  implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
-  implementation(compose.foundation)
-  implementation(compose.animation)
-  implementation(compose.ui)
-  implementation(libs.okhttp)
-  implementation(libs.logging.interceptor)
-  implementation(libs.moshi.kotlin)
-  implementation(libs.kotlinx.coroutines.core)
-  implementation(libs.kotlinx.coroutines.swing)
-  implementation("org.json:json:20240303")
-  implementation("net.java.dev.jna:jna:5.14.0")
-
-  testImplementation(kotlin("test"))
-  testImplementation(compose.desktop.uiTestJUnit4)
-  testImplementation(compose.desktop.currentOs)
+if (!isAndroidDisabled) {
+    extensions.configure<LibraryExtension>("android") {
+        namespace = "io.github.immaghzbad.aetherst.shared"
+        compileSdk = 36
+        defaultConfig {
+            minSdk = 26
+        }
+        compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_11
+            targetCompatibility = JavaVersion.VERSION_11
+        }
+    }
 }
+
+val buildCloakWindows by tasks.registering(Exec::class) {
+    group = "cloak"
+    description = "Compile cloak_windows.c to cloak.exe for Windows package"
+    val src = project.file("src/desktopMain/native/cloak_windows.c")
+    val outDir = project.file("src/desktopMain/resources/bin")
+    val outFile = File(outDir, "cloak.exe")
+    val buildDir = project.file("build/cloak")
+    outputs.file(outFile)
+    inputs.file(src)
+    isIgnoreExitValue = true
+    notCompatibleWithConfigurationCache("Uses Exec with file copy at execution")
+    doFirst {
+        outDir.mkdirs()
+        buildDir.mkdirs()
+        if (!src.exists()) throw GradleException("cloak source missing: $src")
+    }
+    commandLine("cmd", "/c", "where gcc >nul 2>&1 && gcc -O2 -o \"${outFile.absolutePath}\" \"${src.absolutePath}\" -lws2_32 || where clang >nul 2>&1 && clang -O2 -o \"${outFile.absolutePath}\" \"${src.absolutePath}\" -lws2_32 || echo cloak compiler not found, using embedded Kotlin fallback")
+    doLast {
+        if (outFile.exists() && outFile.length() > 0) {
+            outFile.copyTo(File(buildDir, outFile.name), overwrite = true)
+            println("cloak.exe built: ${outFile.length()} bytes")
+        } else {
+            println("cloak.exe not built, embedded Kotlin relay will be used")
+        }
+    }
+}
+tasks.named("desktopProcessResources") { dependsOn(buildCloakWindows) }
 
 compose.desktop {
-  application {
-    mainClass = "io.github.immaghzbad.aetherst.MainKt"
+    application {
+        mainClass = "io.github.immaghzbad.aetherst.MainKt"
+        nativeDistributions {
+            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe)
+            // MSI identity kept across the Windows port so installing 1.7
+            // performs an in-place major upgrade (same packageName/upgradeUuid).
+            // Native packages require MAJOR.MINOR.BUILD: display version stays 1.7.
+            packageName = "AetherST"
+            packageVersion = "1.7.0"
+            vendor = "PowerSigma Team"
+            description = "AetherST Tunnel - Windows"
 
-    nativeDistributions {
-      targetFormats(TargetFormat.Msi, TargetFormat.Exe)
-      packageName = "AetherST"
-      packageVersion = "1.4.2"
-      description = "AetherST Tunnel - Windows"
-      vendor = "PowerSigma Team"
-      windows {
-        upgradeUuid = "8f5e6a3c-9b42-4d1e-8c7a-2f0b6e9a1c4d"
-        iconFile.set(project.file("src/main/resources/icon.ico"))
-      }
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("src/desktopMain/resources"))
+
+            windows {
+                dirChooser = true
+                menu = true
+                shortcut = true
+                upgradeUuid = "8f5e6a3c-9b42-4d1e-8c7a-2f0b6e9a1c4d"
+                iconFile.set(project.file("src/desktopMain/resources/icon.ico"))
+            }
+
+            buildTypes.release.proguard {
+                isEnabled.set(true)
+                optimize.set(false)
+                obfuscate.set(true)
+                configurationFiles.from(project.file("proguard-rules.pro"))
+            }
+        }
     }
-  }
 }
+
+

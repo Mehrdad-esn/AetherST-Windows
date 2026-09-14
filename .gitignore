@@ -11,8 +11,5 @@ app/build/
 *.jks
 *.keystore
 app/release/
-*.zip
-aether-*.toml
-*.log
-composeApp/build/
-composeApp/.gradle/
+# psiphon-helper: upstream tunnel-core source clone (fetched at build time, not committed)
+psiphon-helper/upstream/

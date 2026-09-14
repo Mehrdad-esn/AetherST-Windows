@@ -1,8 +1,8 @@
 package io.github.immaghzbad.aetherst.core
 
 import android.net.Network
-import io.github.immaghzbad.aetherst.data.IpInfoRepository
-import io.github.immaghzbad.aetherst.data.LogRepository
+import io.github.immaghzbad.aetherst.shared.data.IpInfoRepository
+import io.github.immaghzbad.aetherst.shared.data.LogRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,6 +14,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -29,27 +30,29 @@ object DirectRouteVerifier {
     private const val DOMAIN_COOLDOWN_MS = 300_000L
     private const val GLOBAL_COOLDOWN_MS = 3_000L
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private fun nowMillis(): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
     private val lastVerifiedAt = ConcurrentHashMap<String, Long>()
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
     private val lastApiRequestAt = AtomicLong(0)
     private val apiMutex = Mutex()
+    private val clientCache = ConcurrentHashMap<javax.net.SocketFactory, okhttp3.OkHttpClient>()
 
     fun verify(domain: String, network: Network, networkType: String) {
         val normalizedDomain = domain.trim().trimEnd('.').lowercase(Locale.ROOT)
         if (normalizedDomain.isEmpty()) return
         val key = "$normalizedDomain:${network}"
-        val now = System.currentTimeMillis()
+        val now = nowMillis()
         if (now - (lastVerifiedAt[key] ?: 0L) < DOMAIN_COOLDOWN_MS) return
         if (!inFlight.add(key)) return
 
         scope.launch {
             try {
-                val direct = apiMutex.withLock {
-                    val waitMs = GLOBAL_COOLDOWN_MS - (System.currentTimeMillis() - lastApiRequestAt.get())
+                apiMutex.withLock {
+                    val waitMs = GLOBAL_COOLDOWN_MS - (nowMillis() - lastApiRequestAt.get())
                     if (waitMs > 0) delay(waitMs.milliseconds)
-                    lastApiRequestAt.set(System.currentTimeMillis())
-                    fetchIpWhoIs(network) ?: fetchIpApi(network)
+                    lastApiRequestAt.set(nowMillis())
                 }
+                val direct = fetchIpWhoIs(network) ?: fetchIpApi(network)
                 if (direct == null) {
                     LogRepository.w("[DirectVerify] FAILED domain=$normalizedDomain network=$networkType reason=api_unavailable", "DirectVerify")
                     return@launch
@@ -76,7 +79,7 @@ object DirectRouteVerifier {
             } catch (exception: Exception) {
                 LogRepository.w("[DirectVerify] FAILED domain=$normalizedDomain network=$networkType reason=${exception.localizedMessage}", "DirectVerify")
             } finally {
-                lastVerifiedAt[key] = System.currentTimeMillis()
+                lastVerifiedAt[key] = nowMillis()
                 inFlight.remove(key)
             }
         }
@@ -113,11 +116,13 @@ object DirectRouteVerifier {
 
     private fun fetch(network: Network, endpoint: String, parser: (JSONObject) -> ExitInfo?): ExitInfo? {
         return try {
-            val client = NetworkClient.instance.newBuilder()
-                .socketFactory(network.socketFactory)
-                .connectTimeout(6000, java.util.concurrent.TimeUnit.MILLISECONDS)
-                .readTimeout(6000, java.util.concurrent.TimeUnit.MILLISECONDS)
-                .build()
+            val client = clientCache.getOrPut(network.socketFactory) {
+                NetworkClient.instance.newBuilder()
+                    .socketFactory(network.socketFactory)
+                    .connectTimeout(6000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .readTimeout(6000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .build()
+            }
 
             val request = Request.Builder()
                 .url(endpoint)

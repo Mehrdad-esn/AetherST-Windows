@@ -22,9 +22,9 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "AetherST Tunnel"
+rootProject.name = "AetherST-Tunnel"
 
-// Desktop-only builds (no Android SDK required): ./gradlew -PdesktopOnly ...
-val desktopOnly = providers.gradleProperty("desktopOnly").isPresent
-if (!desktopOnly) include(":app")
+if (providers.gradleProperty("skipAndroid").getOrElse("false") != "true" && System.getProperty("skipAndroid") != "true") {
+    include(":app")
+}
 include(":composeApp")

@@ -9,13 +9,26 @@ import java.net.InetSocketAddress
 class ConnectionOwnerResolver(
     private val connectivityManager: ConnectivityManager
 ) {
+    private data class CachedEntry(val uid: Int, val at: Long)
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, CachedEntry>()
+    private val cacheTtlMs = 500L
+
     fun resolve(protocol: Int, local: InetSocketAddress, remote: InetSocketAddress): Int {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             return runCatching {
                 connectivityManager.getConnectionOwnerUid(protocol, local, remote)
             }.getOrDefault(Process.INVALID_UID)
         }
-        return resolveLegacy(protocol, local, remote)
+        val key = "${protocol}|${local.address.hostAddress}:${local.port}->${remote.address.hostAddress}:${remote.port}"
+        val now = android.os.SystemClock.elapsedRealtime()
+        cache[key]?.let { if (now - it.at < cacheTtlMs) return it.uid }
+        val uid = resolveLegacy(protocol, local, remote)
+        cache[key] = CachedEntry(uid, now)
+        if (cache.size > 1024) {
+            val it = cache.entries.iterator()
+            if (it.hasNext()) { it.next(); it.remove() }
+        }
+        return uid
     }
 
     private fun resolveLegacy(protocol: Int, local: InetSocketAddress, remote: InetSocketAddress): Int {

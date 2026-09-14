@@ -14,3 +14,13 @@ Redistribution and use in source and binary forms, with or without modification,
 2. **Copyright Notice:** The above copyright notice and this permission notice must be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+Windows port notice (added by the porter, original notice above unchanged):
+The Windows port in this repository (desktop client, installer, OpenVPN Hybrid mode,
+desktop Psiphon-chain integration) is maintained by Mehrdad-esn
+(https://github.com/Mehrdad-esn/AetherST-Windows), based on the upstream project above.
+All upstream rights and credits remain with the PowerSigma Team. Third-party components
+keep their own licenses: psiphon-tunnel-core (GPL-3.0, see psiphon-helper/), Aether engine
+binary (AGPL-3.0, see LICENSE-AGPL-3.0.txt), hev-socks5-tunnel (see app/src/main/assets/notices).

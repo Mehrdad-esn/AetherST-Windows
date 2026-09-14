@@ -1,8 +1,10 @@
 plugins {
   alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlin.android)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
+  id("org.jetbrains.kotlin.plugin.serialization") version "2.1.0"
 }
 
 android {
@@ -13,8 +15,8 @@ android {
     applicationId = "io.github.immaghzbad.aetherst"
     minSdk = 26
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.4.2"
+    versionCode = 9
+    versionName = "1.7.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -35,7 +37,7 @@ android {
 
   signingConfigs {
     create("release") {
-      storeFile = if (System.getenv("KEYSTORE_FILE") != null) file(System.getenv("KEYSTORE_FILE")) else file("${rootDir}/app/src/main/release.jks")
+      storeFile = if (System.getenv("KEYSTORE_FILE") != null) file(System.getenv("KEYSTORE_FILE")) else file("$rootDir/app/src/main/release.jks")
       storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "aether_password"
       keyAlias = System.getenv("KEY_ALIAS") ?: "aether_key"
       keyPassword = System.getenv("KEY_PASSWORD") ?: "aether_password"
@@ -43,12 +45,6 @@ android {
       enableV2Signing = true
       enableV3Signing = true
       enableV4Signing = true
-    }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
     }
   }
 
@@ -60,7 +56,7 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug { }
   }
 
   splits {
@@ -76,6 +72,13 @@ android {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
   }
+
+  kotlin {
+    compilerOptions {
+      jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
+  }
+
   buildFeatures {
     compose = true
     buildConfig = true
@@ -90,6 +93,8 @@ android {
 }
 
 dependencies {
+  implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
+  implementation(project(":composeApp"))
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.compose.material.icons.core)
@@ -109,6 +114,7 @@ dependencies {
   implementation(libs.converter.moshi)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.kotlinx.serialization.json)
   implementation(libs.logging.interceptor)
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)

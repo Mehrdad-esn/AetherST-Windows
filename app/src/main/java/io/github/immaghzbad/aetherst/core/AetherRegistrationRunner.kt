@@ -1,11 +1,8 @@
 package io.github.immaghzbad.aetherst.core
 
 import android.content.Context
-import io.github.immaghzbad.aetherst.data.LogRepository
-import io.github.immaghzbad.aetherst.model.AetherConfig
-import io.github.immaghzbad.aetherst.model.AetherProtocol
-import io.github.immaghzbad.aetherst.model.ProtocolTestStatus
-import io.github.immaghzbad.aetherst.model.RegistrationResult
+import io.github.immaghzbad.aetherst.shared.data.LogRepository
+import io.github.immaghzbad.aetherst.shared.model.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,7 +80,13 @@ class AetherRegistrationRunner(private val context: Context) {
 
             if ((protocol == AetherProtocol.WG) || (protocol == AetherProtocol.GOOL)) {
                 commandList.add("--keepalive")
-                commandList.add(config.keepalive.toString())
+                commandList.add(if (config.keepaliveEnabled) config.keepalive.toString() else "0")
+            }
+
+            if (config.upstreamProxyEnabled && config.upstreamProxy.isNotEmpty()) {
+                commandList.add("--upstream")
+                commandList.add(config.upstreamProxy)
+                if (config.upstreamProxy.startsWith("http://", ignoreCase = true)) commandList.add("--h2")
             }
 
             val pb = ProcessBuilder(commandList)
@@ -97,9 +100,11 @@ class AetherRegistrationRunner(private val context: Context) {
 
             if (config.h2Mode) env["AETHER_MASQUE_HTTP2"] = "1"
             if (config.quickReconnect) env["AETHER_QUICK_RECONNECT"] = "1" else env["AETHER_QUICK_RECONNECT"] = "0"
-            env["AETHER_WG_KEEPALIVE"] = config.keepalive.toString()
+            env["AETHER_WG_KEEPALIVE"] = if (config.keepaliveEnabled) config.keepalive.toString() else "0"
             env["AETHER_MASQUE_VALIDATE_SECS"] = config.validateSecs.toString()
             env["AETHER_WG_RECONNECT_SECS"] = config.reconnectSecs.toString()
+            if (config.upstreamProxyEnabled && config.upstreamProxy.isNotEmpty()) env["AETHER_UPSTREAM"] = config.upstreamProxy
+            env["AETHER_REPROVISION"] = if (config.reprovision) "1" else "0"
 
             pb.redirectErrorStream(true)
 

@@ -2,7 +2,7 @@ package io.github.immaghzbad.aetherst.core
 
 import android.content.Context
 import android.os.Build
-import io.github.immaghzbad.aetherst.data.LogRepository
+import io.github.immaghzbad.aetherst.shared.data.LogRepository
 import java.io.File
 import java.io.IOException
 
@@ -45,7 +45,9 @@ object BinaryManager {
             try {
                 makeExecutable(bundledBinary)
                 if (bundledBinary.canExecute()) return bundledBinary
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                LogRepository.w("makeExecutable bundled failed: ${e.message}")
+            }
         }
 
         val binDir = File(context.filesDir, "bin")
@@ -80,17 +82,24 @@ object BinaryManager {
 
     private fun makeExecutable(file: File) {
         try {
-            val pb = ProcessBuilder("chmod", "755", file.absolutePath)
+            val pb = ProcessBuilder("chmod", "700", file.absolutePath)
             val proc = pb.start()
             val exitCode = proc.waitFor()
             if (exitCode != 0) {
-                LogRepository.w("chmod 755 returned non-zero exit code: $exitCode")
+                val err = runCatching { proc.errorStream.bufferedReader().readText() }.getOrNull()?.trim()
+                LogRepository.w("chmod 700 failed for ${file.name} exit=$exitCode err=${err ?: "?"}")
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            LogRepository.w("chmod 700 exception for ${file.name}: ${e.message}")
+        }
 
         try {
-            file.setExecutable(true, false)
-        } catch (_: Exception) {}
+            file.setExecutable(true, true)
+            file.setReadable(true, true)
+            file.setWritable(true, true)
+        } catch (e: Exception) {
+            LogRepository.w("setExecutable exception for ${file.name}: ${e.message}")
+        }
 
         if (!file.canExecute()) {
             throw IOException("Failed to set executable permissions on ${file.name}")

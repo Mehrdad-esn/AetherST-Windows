@@ -1,14 +1,18 @@
 package io.github.immaghzbad.aetherst.core
 
 import android.net.VpnService
-import io.github.immaghzbad.aetherst.model.RoutingMode
+import io.github.immaghzbad.aetherst.shared.data.LogRepository
+import io.github.immaghzbad.aetherst.shared.model.RoutingMode
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class LocalSocksProxyServer(
@@ -21,7 +25,15 @@ class LocalSocksProxyServer(
 ) {
     private val isRunning = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
-    private val executor = Executors.newCachedThreadPool()
+    private val executor = ThreadPoolExecutor(
+        16, 512,
+        60L, TimeUnit.SECONDS,
+        LinkedBlockingQueue(1024),
+        ThreadFactory { r ->
+            Thread(r, "Aether-SockProxy-${r.hashCode().toString(16)}").apply { isDaemon = true }
+        },
+        ThreadPoolExecutor.CallerRunsPolicy()
+    )
     private var mainThread: Thread? = null
 
     fun start() {
@@ -146,20 +158,20 @@ class LocalSocksProxyServer(
                     runCatching { vpnService.protect(directSocket) }
                     directSocket.tcpNoDelay = true
                     directSocket.connect(InetSocketAddress(finalTargetIp ?: finalTargetDomain, port), 5000)
-                    
+
                     if (!fakeSuccessSent) {
                         clientOut.write(byteArrayOf(0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0))
                         clientOut.flush()
                     }
-                    
+
                     val dIn = directSocket.getInputStream()
                     val dOut = directSocket.getOutputStream()
-                    
+
                     if (peekedData != null) {
                         dOut.write(peekedData)
                         dOut.flush()
                     }
-                    
+
                     val t1 = Thread { pipe(dIn, clientOut) }
                     val t2 = Thread { pipe(clientIn, dOut) }
                     t1.start()
@@ -167,14 +179,22 @@ class LocalSocksProxyServer(
                     t1.join(300000)
                     t2.join(300000)
                     runCatching { directSocket.close() }
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    LogRepository.w("[SockProxy] DIRECT relay failed target=${finalTargetDomain ?: finalTargetIp}:$port: ${e.localizedMessage}")
+                }
                 return
             }
 
             targetSocket = Socket()
             runCatching { vpnService.protect(targetSocket) }
             targetSocket.tcpNoDelay = true
-            targetSocket.connect(InetSocketAddress(targetHost, targetPort), 5000)
+            try {
+                targetSocket.connect(InetSocketAddress(targetHost, targetPort), 5000)
+            } catch (e: Exception) {
+                LogRepository.e("[SockProxy] Failed to connect to upstream SOCKS5 $targetHost:$targetPort: ${e.message}")
+                throw e
+            }
+            LogRepository.i("[SockProxy] Connected to upstream SOCKS5 $targetHost:$targetPort for target=${finalTargetDomain ?: finalTargetIp}:$port")
 
             val targetIn = targetSocket.getInputStream()
             val targetOut = targetSocket.getOutputStream()
@@ -238,6 +258,7 @@ class LocalSocksProxyServer(
             }
 
             if (targetReplyHeader[1] == 0x00.toByte()) {
+                LogRepository.i("[SockProxy] Upstream CONNECT granted target=${finalTargetDomain ?: finalTargetIp}:$port")
                 if (!fakeSuccessSent) {
                     clientOut.write(targetReplyHeader)
                     clientOut.write(bndAddr)
@@ -256,13 +277,15 @@ class LocalSocksProxyServer(
                 t1.join(300000)
                 t2.join(300000)
             } else {
+                LogRepository.w("[SockProxy] Upstream CONNECT rejected code=0x%02X target=${finalTargetDomain ?: finalTargetIp}:$port".format(targetReplyHeader[1].toInt() and 0xFF))
                 if (!fakeSuccessSent) {
                     clientOut.write(targetReplyHeader)
                     clientOut.write(bndAddr)
                     clientOut.flush()
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            LogRepository.w("[SockProxy] Relay failed: ${e.localizedMessage}")
         } finally {
             runCatching { targetSocket?.close() }
             runCatching { clientSocket.close() }

@@ -1,8 +1,8 @@
 package io.github.immaghzbad.aetherst.core
 
-import android.os.SystemClock
 import java.util.Collections
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 object DnsMap {
     private data class Entry(
@@ -20,11 +20,13 @@ object DnsMap {
         }
     )
 
+    private fun nowMillis(): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
+
     fun put(ip: String, domain: String, ttlMillis: Long = DEFAULT_TTL_MILLIS) {
         val normalizedIp = ip.trim()
         val normalizedDomain = domain.trim().trimEnd('.').lowercase(Locale.ROOT)
         if (normalizedIp.isEmpty() || normalizedDomain.isEmpty()) return
-        val now = SystemClock.elapsedRealtime()
+        val now = nowMillis()
         val expiry = now + ttlMillis.coerceIn(1_000L, 86_400_000L)
         synchronized(ipToDomains) {
             val entries = ipToDomains.getOrPut(normalizedIp) { mutableListOf() }
@@ -35,7 +37,7 @@ object DnsMap {
     }
 
     fun get(ip: String): String? {
-        val now = SystemClock.elapsedRealtime()
+        val now = nowMillis()
         synchronized(ipToDomains) {
             val entries = ipToDomains[ip] ?: return null
             entries.removeAll { it.expiresAt <= now }
@@ -48,6 +50,6 @@ object DnsMap {
     }
 
     fun clear() {
-        ipToDomains.clear()
+        synchronized(ipToDomains) { ipToDomains.clear() }
     }
 }

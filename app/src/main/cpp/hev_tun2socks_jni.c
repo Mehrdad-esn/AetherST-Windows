@@ -57,7 +57,7 @@ static jint
 native_get_version (JNIEnv *env, jobject thiz)
 {
     /* Return a constant for smoke test validation */
-    return 2150;
+    return 2171;
 }
 
 static JNINativeMethod g_methods[] = {

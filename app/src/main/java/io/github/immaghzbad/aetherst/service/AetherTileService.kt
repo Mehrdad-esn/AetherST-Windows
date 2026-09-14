@@ -9,12 +9,16 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import io.github.immaghzbad.aetherst.MainActivity
 import io.github.immaghzbad.aetherst.R
-import io.github.immaghzbad.aetherst.data.AetherConfigRepository
-import io.github.immaghzbad.aetherst.model.ConnectionStatus
+import io.github.immaghzbad.aetherst.platform.PlatformContext
+import io.github.immaghzbad.aetherst.platform.getSettings
+import io.github.immaghzbad.aetherst.shared.data.AetherConfigRepository
+import io.github.immaghzbad.aetherst.core.ConnectionController
+import io.github.immaghzbad.aetherst.shared.model.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
@@ -25,26 +29,42 @@ class AetherTileService : TileService() {
     override fun onStartListening() {
         super.onStartListening()
         job?.cancel()
-        job = AetherVpnService.serviceState
+        job = ConnectionController.status
             .onEach { updateTile(it) }
             .launchIn(scope)
     }
 
     override fun onStopListening() {
         job?.cancel()
+        job = null
         super.onStopListening()
     }
 
     override fun onClick() {
-        val repo = AetherConfigRepository.getInstance(this)
+        val repo = AetherConfigRepository.getInstance(getSettings(PlatformContext(this)))
         if (!repo.isOnboardingComplete.value) {
             startApp()
             return
         }
 
-        when (AetherVpnService.serviceState.value) {
-            ConnectionStatus.RUNNING -> AetherVpnService.stopVpn(this)
-            ConnectionStatus.STOPPED, ConnectionStatus.ERROR -> AetherVpnService.startVpn(this)
+        val config = repo.config.value
+        val state = ConnectionController.status.value
+
+        when (state) {
+            ConnectionStatus.RUNNING -> {
+                if (config.connectionMode == ConnectionMode.TUNNEL) {
+                    AetherVpnService.stopVpn(this)
+                } else {
+                    AetherProxyService.stopProxy(this)
+                }
+            }
+            ConnectionStatus.STOPPED, ConnectionStatus.ERROR -> {
+                if (config.connectionMode == ConnectionMode.TUNNEL) {
+                    AetherVpnService.startVpn(this)
+                } else {
+                    AetherProxyService.startProxy(this)
+                }
+            }
             else -> Unit
         }
     }
@@ -68,12 +88,24 @@ class AetherTileService : TileService() {
     private fun updateTile(state: ConnectionStatus) {
         val tile = qsTile ?: return
         tile.icon = Icon.createWithResource(this, R.drawable.ic_stat_aether)
-        
+
+        val config = AetherConfigRepository.getInstance(getSettings(PlatformContext(this))).config.value
+
         when (state) {
             ConnectionStatus.RUNNING -> {
                 tile.state = Tile.STATE_ACTIVE
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    tile.subtitle = "Connected"
+                    tile.subtitle = when (config.connectionMode) {
+                        ConnectionMode.TUNNEL -> "VPN Connected"
+                        ConnectionMode.PROXY_ONLY -> {
+                            if (config.httpProxyEnabled) {
+                                "Proxy \u2022 SOCKS5 :${config.socksPort} \u2022 HTTP :${config.httpPort}"
+                            } else {
+                                "Proxy \u2022 SOCKS5 :${config.socksPort}"
+                            }
+                        }
+                        ConnectionMode.SYSTEM_PROXY -> "Proxy \u2022 HTTP :${config.httpPort}"
+                    }
                 }
             }
             ConnectionStatus.STOPPED, ConnectionStatus.ERROR -> {
@@ -94,6 +126,8 @@ class AetherTileService : TileService() {
 
     override fun onDestroy() {
         job?.cancel()
+        job = null
+        scope.cancel()
         super.onDestroy()
     }
 }
