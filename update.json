@@ -1,0 +1,7 @@
+{
+  "version": "1.4.2",
+  "version_code": 1,
+  "is_beta": false,
+  "changelog": "AetherST 1.4.2 for Windows.\n• OpenVPN Hybrid: upload an .ovpn config and save its username/password once - credentials are remembered for reconnects.\n• 33 automated tests covering config persistence and OpenVPN settings.\n• System tray, single-instance guard, custom title bar and MSI installer.",
+  "release_url": "https://github.com/Mehrdad-esn/AetherST-Windows/releases"
+}
