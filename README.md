@@ -121,7 +121,7 @@ Chains a full OpenVPN client over the app's proxy tunnel (the Aether core runs i
 
 ### Installation
 1. Go to the [Releases](https://github.com/Mehrdad-esn/AetherST-Windows/releases) page.
-2. **Windows:** Download `AetherST-1.7.1.msi` (release **1.7.1**) and install it (upgrades older versions in place). Older installs are also offered this update automatically through the in-app update prompt with an Update button.
+2. **Windows:** Download `AetherST-1.7.1.msi` (release **1.7.1**) and install it (upgrades older versions in place). Older installs are also offered this update automatically through the in-app update prompt with an Update button. Each release ships an `.msi.sha256` sidecar — verify with `certutil -hashfile AetherST-1.7.1.msi SHA256` before installing (SmartScreen may still warn on first releases: the build is unsigned; click *More info → Run anyway*).
 3. **Android (upstream):** Get the APK from the [upstream releases](https://github.com/immaghzbad/AetherST/releases) page (`arm64-v8a` recommended).
 
 ### Build from Source

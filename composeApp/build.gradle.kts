@@ -1,4 +1,6 @@
 import com.android.build.api.dsl.LibraryExtension
+import java.io.File
+import java.security.MessageDigest
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -136,6 +138,37 @@ compose.desktop {
                 obfuscate.set(true)
                 configurationFiles.from(project.file("proguard-rules.pro"))
             }
+        }
+    }
+}
+
+// 1.7.1: SmartScreen/user trust automation — hashes every packaged MSI so each
+// release ships a verifiable `.sha256` sidecar (also uploaded to the GitHub release).
+tasks.register("generateMsiChecksum") {
+    group = "distribution"
+    description = "Writes SHA256 sidecar files next to packaged MSIs."
+    dependsOn("packageMsi")
+    // Resolved here (configuration time): only plain values may be captured by doLast
+    // or the configuration cache cannot serialize the task.
+    val msiDir: File = layout.buildDirectory.dir("compose/binaries/main/msi").get().asFile
+    doLast {
+        val files = msiDir.listFiles { f -> f.isFile && f.extension.equals("msi", ignoreCase = true) }
+            ?: emptyArray()
+        if (files.isEmpty()) throw GradleException("No MSI found in $msiDir")
+        files.forEach { msi ->
+            val digest: MessageDigest = MessageDigest.getInstance("SHA-256")
+            msi.inputStream().use { input ->
+                val buf = ByteArray(1024 * 1024)
+                while (true) {
+                    val n: Int = input.read(buf)
+                    if (n <= 0) break
+                    digest.update(buf, 0, n)
+                }
+            }
+            val hex: String = digest.digest().joinToString("") { b -> "%02x".format(b) }
+            val out = File(msi.parentFile, "${msi.name}.sha256")
+            out.writeText("$hex  ${msi.name}\n")
+            println("SHA256 written: ${out.absolutePath}")
         }
     }
 }
