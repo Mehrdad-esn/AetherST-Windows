@@ -29,6 +29,9 @@ class OpenVpnConnector(
     private var elevatedPid: Long? = null
     private var managementPort: Int? = null
     private var capturedGateway: String? = null
+    /** Cumulative bytes from openvpn management (`status`); fed to the UI traffic counters. */
+    @Volatile var onTraffic: ((rxBytes: Long, txBytes: Long) -> Unit)? = null
+    private var trafficThread: Thread? = null
 
     private fun filesDir(): File = File(getSystemUtils(context).getFilesDir())
     private fun openVpnDir(): File = File(filesDir(), "openvpn")
@@ -54,6 +57,11 @@ class OpenVpnConnector(
 
             capturedGateway = getDefaultGateway()
             managementPort = allocateManagementPort()
+            // 1.7.1: snapshot pre-existing /1 routes + track the .ovpn remote IP so
+            // stop() can surgically remove exactly what this session added —
+            // independent of openvpn log formats.
+            snapshotSlashOneRoutes()
+            trackRemoteServer(configFile)
 
             val cmd = mutableListOf(
                 exe.absolutePath,
@@ -100,6 +108,8 @@ class OpenVpnConnector(
             }
 
             addRouteBypass()
+            recordRedirectGateways(logFile)
+            startTrafficPoller()
 
             LogRepository.i("[OpenVPN] Hybrid tunnel CONNECTED — system is now tunneled through OpenVPN over Aether proxy")
             true
@@ -112,6 +122,8 @@ class OpenVpnConnector(
     fun stop() {
         val directPid = process?.pid()
         val pid = elevatedPid ?: directPid
+
+        stopTrafficPoller()
 
         if (pid != null && signalGracefulStop()) {
             waitForExit(pid, timeoutMs = 8000)
@@ -131,6 +143,13 @@ class OpenVpnConnector(
         managementPort = null
 
         removeRouteBypass()
+        // openvpn removes its own /1 redirect routes on graceful exit, but a taskkill
+        // leaves them behind (all traffic then blackholes into a dead TUN). Remove the
+        // gateways OUR instance pushed, so a disconnect can never poison the next session.
+        removeRedirectRoutes()
+        // 1.7.1: snapshot-diff cleanup (log-format independent) + remote-server /32.
+        removeSessionSlashOne()
+        removeTrackedRemote()
     }
 
     private fun signalGracefulStop(): Boolean {
@@ -347,6 +366,266 @@ class OpenVpnConnector(
                     .redirectErrorStream(true).start().waitFor()
             }
         }
+    }
+
+    /**
+     * 1.7.1: the server-pushed default-hijack routes (`0.0.0.0/1` + `128.0.0.0/1`
+     * via the tunnel gateway) are what poison every later session when they survive
+     * a disconnect. We record the gateways OUR instance pushed (from openvpn.log)
+     * and delete exactly those — never foreign VPN routes.
+     */
+    private fun gatewaysFile(): File = File(dataDir(), "openvpn-gateways.txt")
+
+    private fun parseRedirectGateways(text: String): Set<String> {
+        val result = LinkedHashSet<String>()
+        val patterns = listOf(
+            Regex("""0\.0\.0\.0/1\s+via\s+(\d+\.\d+\.\d+\.\d+)"""),
+            Regex("""128\.0\.0\.0/1\s+via\s+(\d+\.\d+\.\d+\.\d+)"""),
+            Regex("""0\.0\.0\.0\s+MASK\s+128\.0\.0\.0\s+(\d+\.\d+\.\d+\.\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""128\.0\.0\.0\s+MASK\s+128\.0\.0\.0\s+(\d+\.\d+\.\d+\.\d+)""", RegexOption.IGNORE_CASE)
+        )
+        for (p in patterns) {
+            p.findAll(text).forEach {
+                val ip = it.groupValues[1]
+                if (ip != "0.0.0.0" && !ip.startsWith("127.")) result.add(ip)
+            }
+        }
+        return result
+    }
+
+    private fun recordRedirectGateways(logFile: File) {
+        runCatching {
+            if (!logFile.exists()) return
+            val found = parseRedirectGateways(logFile.readText())
+            if (found.isEmpty()) return
+            val file = gatewaysFile()
+            val existing = if (file.exists()) {
+                file.readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            } else emptySet()
+            file.writeText(((existing + found).sorted()).joinToString("\n"))
+            LogRepository.d("[OpenVPN] Redirect gateways recorded: ${(existing + found).joinToString(",")}", "OpenVPN")
+        }
+    }
+
+    private fun removeRedirectRoutes() {
+        runCatching {
+            val file = gatewaysFile()
+            val ipPattern = Regex("""\d+\.\d+\.\d+\.\d+""")
+            val fromFile = if (file.exists()) {
+                file.readLines().map { it.trim() }.filter { it.matches(ipPattern) }
+            } else emptyList()
+            val logFile = File(dataDir(), "openvpn.log")
+            val fromLog = if (logFile.exists()) parseRedirectGateways(logFile.readText()).toList() else emptyList()
+            for (gw in (fromFile + fromLog).toSet()) {
+                runCatching {
+                    ProcessBuilder("route", "delete", "0.0.0.0", "mask", "128.0.0.0", gw)
+                        .redirectErrorStream(true).start().waitFor()
+                }
+                runCatching {
+                    ProcessBuilder("route", "delete", "128.0.0.0", "mask", "128.0.0.0", gw)
+                        .redirectErrorStream(true).start().waitFor()
+                }
+                LogRepository.d("[OpenVPN] Redirect routes removed via $gw", "OpenVPN")
+            }
+            // Our tunnel is gone now; a stale file is also consumed by NetworkHealer
+            // on next startup (crash path), so clearing here is safe.
+            file.delete()
+        }
+    }
+
+    /**
+     * 1.7.1: snapshot-diff route cleanup, independent of openvpn log formats.
+     * Before the tunnel rises we record every existing `0.0.0.0/1 + 128.0.0.0/1`
+     * ("dst|gw|ifIndex|ifDesc" per line); at stop() anything NEW on a community
+     * TAP adapter is ours and gets deleted. Foreign VPNs (different adapter
+     * descriptions, e.g. OpenVPN Connect) are never touched.
+     */
+    private fun slashOneFile(): File = File(dataDir(), "openvpn-slashone.txt")
+    private fun remoteFile(): File = File(dataDir(), "openvpn-remote.txt")
+
+    private fun querySlashOneRoutes(): List<String> {
+        // File-based (not inline -Command): nested quoting in inline scripts breaks
+        // silently and error text would poison the snapshot file. Output validator
+        // below is the second line of defense.
+        return try {
+            val scriptFile = File(dataDir(), "slashone-query.ps1")
+            scriptFile.writeText(
+                "\$r = Get-NetRoute -DestinationPrefix '0.0.0.0/1','128.0.0.0/1' -ErrorAction SilentlyContinue | " +
+                    "Select-Object DestinationPrefix,NextHop,InterfaceIndex\n" +
+                    "foreach (\$x in \$r) {\n" +
+                    "  \$d = ''\n" +
+                    "  try { \$d = (Get-NetAdapter -InterfaceIndex \$x.InterfaceIndex -ErrorAction Stop).InterfaceDescription } catch {}\n" +
+                    "  '{0}|{1}|{2}|{3}' -f \$x.DestinationPrefix, \$x.NextHop, \$x.InterfaceIndex, \$d\n" +
+                    "}\n"
+            )
+            val proc = ProcessBuilder(
+                "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", scriptFile.absolutePath
+            ).redirectErrorStream(false).start()
+            val text = proc.inputStream.bufferedReader().readText()
+            proc.waitFor()
+            val valid = Regex("""^\S+\|\d+\.\d+\.\d+\.\d+\|\d+\|""")
+            text.lineSequence().map { it.trim() }.filter { valid.containsMatchIn(it) }.toList()
+        } catch (_: Exception) { emptyList() }
+    }
+
+    private fun isCommunityTap(desc: String): Boolean {
+        val d = desc.trim()
+        return d.equals("TAP-Windows Adapter V9", ignoreCase = true) ||
+            d.startsWith("TAP-Windows Adapter V9 #", ignoreCase = true)
+    }
+
+    private fun slashOneDeleteSpec(dst: String): Array<String>? {
+        return when (dst.trim()) {
+            "0.0.0.0/1" -> arrayOf("0.0.0.0", "mask", "128.0.0.0")
+            "128.0.0.0/1" -> arrayOf("128.0.0.0", "mask", "128.0.0.0")
+            else -> null
+        }
+    }
+
+    private fun snapshotSlashOneRoutes() {
+        runCatching {
+            slashOneFile().writeText(querySlashOneRoutes().joinToString("\n"))
+        }
+    }
+
+    /** Tracks the .ovpn `remote` server IP so its /32 bypass can be removed at stop(). */
+    private fun trackRemoteServer(userConfig: File) {
+        runCatching {
+            val remote = userConfig.readLines().map { it.trim() }
+                .firstOrNull { it.startsWith("remote ", ignoreCase = true) }
+                ?.split(Regex("\\s+"))?.getOrNull(1) ?: return
+            val ips = if (remote.matches(Regex("""\d+\.\d+\.\d+\.\d+"""))) {
+                listOf(remote)
+            } else {
+                // Hostname: resolve NOW, while DNS still works.
+                runCatching {
+                    java.net.InetAddress.getAllByName(remote)
+                        .map { it.hostAddress }.filter { it.contains(".") && !it.contains(":") }
+                }.getOrDefault(emptyList())
+            }
+            if (ips.isEmpty()) return
+            val file = remoteFile()
+            val existing = if (file.exists()) {
+                file.readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            } else emptySet()
+            file.writeText(((existing + ips).sorted()).joinToString("\n"))
+            LogRepository.d("[OpenVPN] Remote server tracked: ${(existing + ips).joinToString(",")}", "OpenVPN")
+        }
+    }
+
+    private fun warnNeedsAdmin(what: String) {
+        LogRepository.w("[OpenVPN] $what — run the app as administrator once to allow route cleanup", "OpenVPN")
+    }
+
+    /** Deletes session-added /1 routes on community TAP adapters; true if leftovers remain. */
+    private fun removeSessionSlashOne(): Boolean {
+        var leftover = false
+        runCatching {
+            val before = if (slashOneFile().exists()) {
+                slashOneFile().readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            } else emptySet()
+            for (entry in querySlashOneRoutes().toSet() - before) {
+                val parts = entry.split("|")
+                if (parts.size < 4) continue
+                if (!isCommunityTap(parts[3])) continue
+                val spec = slashOneDeleteSpec(parts[0]) ?: continue
+                runCatching {
+                    ProcessBuilder("route", "delete", spec[0], spec[1], spec[2], parts[1])
+                        .redirectErrorStream(true).start().waitFor()
+                }
+                LogRepository.d("[OpenVPN] Session /1 removed: ${parts[0]} via ${parts[1]}", "OpenVPN")
+            }
+            val stillThere = querySlashOneRoutes().toSet() - before
+                .filter { it.split("|").getOrNull(3)?.let { d -> isCommunityTap(d) } == true }
+            if (stillThere.isNotEmpty()) {
+                warnNeedsAdmin("could not remove ${stillThere.size} tunnel route(s)")
+                leftover = true
+            } else {
+                slashOneFile().delete()
+            }
+        }
+        return leftover
+    }
+
+    private fun removeTrackedRemote() {
+        runCatching {
+            val file = remoteFile()
+            if (!file.exists()) return
+            val ipPattern = Regex("""\d+\.\d+\.\d+\.\d+""")
+            val ips = file.readLines().map { it.trim() }.filter { it.matches(ipPattern) }.toSet()
+            for (ip in ips) {
+                runCatching {
+                    ProcessBuilder("route", "delete", ip, "mask", "255.255.255.255")
+                        .redirectErrorStream(true).start().waitFor()
+                }
+            }
+            val gone = currentHostRoutes(ips)
+            if (gone.isNotEmpty()) {
+                warnNeedsAdmin("could not remove server bypass route(s) ${gone.joinToString(",")}")
+            } else {
+                file.delete()
+            }
+        }
+    }
+
+    private fun currentHostRoutes(ips: Set<String>): Set<String> {
+        return try {
+            val script = "Get-NetRoute -DestinationPrefix @(${ips.joinToString(",") { "'$it/32'" }}) -ErrorAction SilentlyContinue | ForEach-Object { \$_.DestinationPrefix }"
+            val proc = ProcessBuilder("powershell", "-NoProfile", "-Command", script)
+                .redirectErrorStream(true).start()
+            val text = proc.inputStream.bufferedReader().readText()
+            proc.waitFor()
+            text.lineSequence().map { it.trim().removeSuffix("/32") }.filter { it in ips }.toSet()
+        } catch (_: Exception) { emptySet() }
+    }
+
+    /**
+     * 1.7.1: polls the local management interface (`status`) for the cumulative
+     * `TCP/UDP read/write bytes` counters so the dashboard shows real volume and
+     * speed in OpenVPN Hybrid mode (apps use OpenVPN's own TUN there, bypassing
+     * the counting relays, which would otherwise stay at 0B).
+     */
+    private fun startTrafficPoller() {
+        val port = managementPort ?: return
+        stopTrafficPoller()
+        trafficThread = Thread {
+            while (managementPort != null) {
+                try {
+                    java.net.Socket("127.0.0.1", port).use { socket ->
+                        socket.soTimeout = 5000
+                        socket.getOutputStream().write("status\n".toByteArray())
+                        socket.getOutputStream().flush()
+                        var rx = -1L
+                        var tx = -1L
+                        val reader = socket.inputStream.bufferedReader()
+                        while (true) {
+                            val line = reader.readLine() ?: break
+                            if (line == "END") break
+                            if (line.startsWith("TCP/UDP read bytes,")) {
+                                line.substringAfter(",").trim().toLongOrNull()?.let { rx = it }
+                            } else if (line.startsWith("TCP/UDP write bytes,")) {
+                                line.substringAfter(",").trim().toLongOrNull()?.let { tx = it }
+                            }
+                        }
+                        if (rx >= 0 && tx >= 0) {
+                            try { onTraffic?.invoke(rx, tx) } catch (_: Exception) {}
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+                try {
+                    Thread.sleep(1000)
+                } catch (_: InterruptedException) {
+                    break
+                }
+            }
+        }.apply { isDaemon = true; name = "openvpn-traffic"; start() }
+    }
+
+    private fun stopTrafficPoller() {
+        trafficThread?.interrupt()
+        trafficThread = null
     }
 
     private fun getDefaultGateway(): String? {

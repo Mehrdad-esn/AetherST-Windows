@@ -609,6 +609,12 @@ class AetherViewModel(platformContext: PlatformContext) : ViewModel() {
 
     private suspend fun fetchPublicIp() {
         val cfg = config.value
+        // 1.7.1: Hybrid exits via OpenVPN's own TUN, so a direct lookup shows the
+        // FINAL exit IP (e.g. Proton) instead of the underlying WG proxy's exit.
+        if (cfg.protocol == AetherProtocol.OPENVPN) {
+            IpInfoRepository.fetchIpInfo(useProxy = false)
+            return
+        }
         if (cfg.isTorActive() && ActiveProxyProvider.torProxyUrl.isNullOrEmpty()) {
             LogRepository.i("Tor chain pending, deferring IP lookup until Tor proxy is ready", "IpWhois")
             return

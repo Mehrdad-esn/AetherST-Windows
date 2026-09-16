@@ -30,7 +30,7 @@
 
 ## 📱 Versions & Platforms
 
-- **Windows Client (this port):** `v1.7` — sections below marked *(Windows)* describe exactly what this build contains (every version number verified against the shipped binaries). Installs in place over older versions (same MSI product identity); older installs are offered updates automatically via the in-app update prompt.
+- **Windows Client (this port):** `v1.7.1` — sections below marked *(Windows)* describe exactly what this build contains (every version number verified against the shipped binaries). Installs in place over older versions (same MSI product identity); older installs are offered updates automatically via the in-app update prompt.
 - **Android Client (upstream):** `v1.7.0` — sections marked *(Android)* describe the upstream mobile client for reference; they are **not** all present on Windows (see the Windows notes).
 
 ## ✨ Features (Windows)
@@ -115,12 +115,13 @@ Chains a full OpenVPN client over the app's proxy tunnel (the Aether core runs i
 1. Select **OpenVPN Hybrid** as the protocol (dashboard chips or Settings).
 2. Click **Choose .ovpn file…** (or paste the path) into **OpenVPN Config File**, plus username/password if the config requires `auth-user-pass`.
 3. Connect. On first use the official OpenVPN Community build is downloaded at runtime from `swupdate.openvpn.org` and extracted locally — OpenVPN binaries are **not** bundled with this repository.
+4. Since `v1.7.1`: the dashboard stays at *Validating* until the OpenVPN handshake itself completes (no premature green state), live volume/speed counters work in this mode (read from the OpenVPN management interface), and tunnel redirect routes are cleaned up automatically on disconnect — a stuck disconnect no longer requires a Windows restart. Use a TCP (`.tcp.ovpn`) config; UDP configs are forced to TCP for proxy compatibility and fail if the server has no TCP listener.
 
 ## 🚀 Getting Started
 
 ### Installation
 1. Go to the [Releases](https://github.com/Mehrdad-esn/AetherST-Windows/releases) page.
-2. **Windows:** Download `AetherST-1.7.0.msi` (release **1.7**) and install it (upgrades older versions in place). Older installs are also offered this update automatically through the in-app update prompt with an Update button.
+2. **Windows:** Download `AetherST-1.7.1.msi` (release **1.7.1**) and install it (upgrades older versions in place). Older installs are also offered this update automatically through the in-app update prompt with an Update button.
 3. **Android (upstream):** Get the APK from the [upstream releases](https://github.com/immaghzbad/AetherST/releases) page (`arm64-v8a` recommended).
 
 ### Build from Source

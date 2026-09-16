@@ -112,11 +112,11 @@ compose.desktop {
         mainClass = "io.github.immaghzbad.aetherst.MainKt"
         nativeDistributions {
             targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi, org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe)
-            // MSI identity kept across the Windows port so installing 1.7
+            // MSI identity kept across the Windows port so installing 1.7.1
             // performs an in-place major upgrade (same packageName/upgradeUuid).
-            // Native packages require MAJOR.MINOR.BUILD: display version stays 1.7.
+            // Native packages require MAJOR.MINOR.BUILD: display version stays 1.7.1.
             packageName = "AetherST"
-            packageVersion = "1.7.0"
+            packageVersion = "1.7.1"
             vendor = "PowerSigma Team"
             description = "AetherST Tunnel - Windows"
 

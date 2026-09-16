@@ -71,6 +71,15 @@ actual object ConnectionController {
         @Volatile private var psiphonReady = false
         /** While true, a runner RUNNING is held as VALIDATING: UI stays non-green until the Psiphon chain is fully tunneled. */
         @Volatile private var psiphonWait = false
+        /** 1.7.1: same gate for OpenVPN Hybrid — green UI only after openvpn itself handshakes, not when the underlying WG proxy turns RUNNING. */
+        @Volatile private var openVpnWait = false
+        @Volatile private var openVpnReady = false
+        /** 1.7.1: cumulative counters from openvpn management (`status`); apps use OpenVPN's own TUN here. */
+        @Volatile private var ovpnRx = -1L
+        @Volatile private var ovpnTx = -1L
+        private var prevOvpnRx = 0L
+        private var prevOvpnTx = 0L
+        private var ovpnTrafficSeen = false
 
         init {
             scope.launch {
@@ -100,11 +109,11 @@ actual object ConnectionController {
             if (statusJob == null) {
                 statusJob = scope.launch {
                     runner.connectionStatus.collect {
-                        // Gate: while the Psiphon chain is pending, never surface RUNNING
-                        // (green/connected UI) — hold at VALIDATING until psiphonReady.
-                        _status.value =
-                            if (it == ConnectionStatus.RUNNING && psiphonWait && !psiphonReady) ConnectionStatus.VALIDATING
-                            else it
+                        // Gate: while a chain is pending, never surface RUNNING
+                        // (green/connected UI) — hold at VALIDATING until the chain
+                        // (Psiphon helper or OpenVPN handshake) is fully tunneled.
+                        val chainPending = (psiphonWait && !psiphonReady) || (openVpnWait && !openVpnReady)
+                        _status.value = if (it == ConnectionStatus.RUNNING && chainPending) ConnectionStatus.VALIDATING else it
                     }
                 }
             }
@@ -136,6 +145,12 @@ actual object ConnectionController {
                 effectiveConfig.psiphonMasqueOrder.lowercase().trim() == "psiphon_first"
             psiphonReady = false
             psiphonWait = psiphonActive
+            // 1.7.1: OpenVPN Hybrid = WG proxy first, openvpn handshake second.
+            // Hold the UI at VALIDATING until openvpn itself reports CONNECTED.
+            val isOpenVpnHybrid = effectiveConfig.protocol == AetherProtocol.OPENVPN
+            openVpnWait = isOpenVpnHybrid
+            openVpnReady = false
+            resetOpenVpnTraffic()
 
             if (psiphonOnly) {
                 LogRepository.i("[Controller] Psiphon-only mode — Aether core not started")
@@ -150,7 +165,6 @@ actual object ConnectionController {
 
             routingEngine = RoutingEngine(effectiveConfig.routingRules)
             startCountingRelays(coreSocksPort, coreSocksPort)
-            val isOpenVpnHybrid = effectiveConfig.protocol == AetherProtocol.OPENVPN
             if (isOpenVpnHybrid) {
                 LogRepository.i("[Controller] OpenVPN Hybrid mode — skipping AetherST TUN/DNS/system-proxy (OpenVPN creates its own TUN)")
             }
@@ -196,18 +210,40 @@ actual object ConnectionController {
                 } else {
                     val httpPort = effectiveConfig.httpPort.toIntOrNull() ?: 1820
                     openVpnJob = scope.launch(Dispatchers.IO) {
-                        status.first { it == ConnectionStatus.RUNNING || it == ConnectionStatus.ERROR }
-                        if (_status.value != ConnectionStatus.RUNNING) return@launch
+                        // NOTE: observe the RAW runner status here, not the gated public `status`:
+                        // the gate withholds RUNNING until this connector finishes
+                        // (self-dependency = deadlock), same pattern as the Psiphon chain.
+                        val coreOk = runner.connectionStatus.first {
+                            it == ConnectionStatus.RUNNING || it == ConnectionStatus.ERROR || it == ConnectionStatus.STOPPED
+                        } == ConnectionStatus.RUNNING
+                        if (!coreOk) {
+                            openVpnWait = false
+                            return@launch
+                        }
                         LogRepository.i("[Controller] Core proxy ready — starting OpenVPN connector")
                         val connector = OpenVpnConnector(
                             context, cfgPath, "127.0.0.1", coreSocksPort, httpPort,
                             effectiveConfig.openVpnUsername, effectiveConfig.openVpnPassword
                         )
                         openVpnConnector = connector
-                        if (!connector.start()) {
+                        // 1.7.1: live volume/speed from openvpn management counters.
+                        connector.onTraffic = { rx, tx -> onOpenVpnTraffic(rx, tx) }
+                        val ok = connector.start()
+                        // Stop() may have been pressed during the blocking handshake:
+                        // never surface CONNECTED for a torn-down session.
+                        if (!isActive || openVpnConnector !== connector) {
+                            runCatching { connector.stop() }
+                            return@launch
+                        }
+                        if (!ok) {
+                            openVpnWait = false
                             LogRepository.e("[Controller] OpenVPN hybrid tunnel failed to start")
                             _status.value = ConnectionStatus.ERROR
                         } else {
+                            // Release the gate: openvpn handshook itself, UI may go green.
+                            openVpnReady = true
+                            openVpnWait = false
+                            _status.value = ConnectionStatus.RUNNING
                             LogRepository.i("[Controller] OpenVPN hybrid tunnel CONNECTED")
                         }
                     }
@@ -450,6 +486,9 @@ actual object ConnectionController {
                 psiphonConnector = null
                 psiphonReady = false
                 psiphonWait = false
+                openVpnWait = false
+                openVpnReady = false
+                resetOpenVpnTraffic()
                 ActiveProxyProvider.psiphonProxyUrl = null
                 runner.stop()
                 stopTimer()
@@ -494,7 +533,41 @@ actual object ConnectionController {
             _sessionTraffic.value = SessionTraffic()
         }
 
+        private fun onOpenVpnTraffic(rx: Long, tx: Long) {
+            ovpnRx = rx
+            ovpnTx = tx
+        }
+
+        private fun resetOpenVpnTraffic() {
+            ovpnRx = -1L
+            ovpnTx = -1L
+            prevOvpnRx = 0L
+            prevOvpnTx = 0L
+            ovpnTrafficSeen = false
+        }
+
         private fun updateTraffic() {
+            // 1.7.1 OpenVPN Hybrid: apps ride OpenVPN's own TUN, bypassing the counting
+            // relays (which would sit at 0B). Drive volume/speed from the openvpn
+            // management counters instead; speeds are per-second deltas like the rest.
+            if (openVpnConnector != null && ovpnRx >= 0 && ovpnTx >= 0) {
+                if (!ovpnTrafficSeen) {
+                    ovpnTrafficSeen = true
+                    prevOvpnRx = ovpnRx
+                    prevOvpnTx = ovpnTx
+                }
+                val downloadSpeed = (ovpnRx - prevOvpnRx).coerceAtLeast(0L).toDouble()
+                val uploadSpeed = (ovpnTx - prevOvpnTx).coerceAtLeast(0L).toDouble()
+                prevOvpnRx = ovpnRx
+                prevOvpnTx = ovpnTx
+                _sessionTraffic.value = SessionTraffic(
+                    uploadedBytes = ovpnTx,
+                    downloadedBytes = ovpnRx,
+                    uploadSpeedBps = uploadSpeed,
+                    downloadSpeedBps = downloadSpeed
+                )
+                return
+            }
             val socksStats = socksProxy?.getStats()
             val httpStats = httpProxy?.getStats()
             val hasCounting = socksStats != null || httpStats != null

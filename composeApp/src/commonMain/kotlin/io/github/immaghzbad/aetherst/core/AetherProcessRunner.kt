@@ -287,6 +287,14 @@ class AetherProcessRunner(private val context: PlatformContext) {
     private fun parseOutputLine(line: String, attemptId: Long, protocol: AetherProtocol) {
         if (currentAttemptId.get() != attemptId) return
         val lower = line.lowercase()
+        // 1.7.1: the bind port is held by a stale core (e.g. after End-task) — a hot
+        // retry loop can never succeed, so fail fast with an actionable message.
+        if (lower.contains("another program already listens there")) {
+            LogRepository.e("Local proxy port is busy (a stale core still holds it?) — restart the app once to heal", "AetherCore")
+            updateState(ConnectionStatus.ERROR, attemptId)
+            currentAttemptId.incrementAndGet()
+            return
+        }
         when {
             lower.contains(" error ") || lower.contains("[error]") -> LogRepository.e(line, "AetherCore")
             lower.contains(" warn ") || lower.contains("[warn]") -> LogRepository.w(line, "AetherCore")

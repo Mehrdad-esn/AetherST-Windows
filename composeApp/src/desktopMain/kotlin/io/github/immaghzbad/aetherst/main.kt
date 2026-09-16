@@ -61,6 +61,15 @@ private fun sweepChildProcesses() {
         ProcessBuilder("taskkill", "/F", "/T", "/IM", "hev-socks5-tunnel.exe")
             .redirectErrorStream(true).start().waitFor(5, TimeUnit.SECONDS)
     }
+    // 1.7.1: only OUR Hybrid openvpn (cmdline carries the wrapper config name).
+    // A blanket `taskkill /IM openvpn.exe` would murder a foreign client session
+    // (e.g. the user's OpenVPN Connect tunnel) on AetherST exit.
+    runCatching {
+        ProcessBuilder(
+            "powershell", "-NoProfile", "-Command",
+            "Get-CimInstance Win32_Process -Filter \"Name='openvpn.exe'\" | Where-Object { \$_.CommandLine -like '*openvpn-hybrid*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }"
+        ).redirectErrorStream(true).start().waitFor(8, TimeUnit.SECONDS)
+    }
 }
 
 private fun cleanTempFiles() {
