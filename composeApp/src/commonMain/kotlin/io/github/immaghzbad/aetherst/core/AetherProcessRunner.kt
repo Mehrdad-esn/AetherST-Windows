@@ -19,6 +19,7 @@ class AetherProcessRunner(private val context: PlatformContext) {
     private val currentAttemptId = AtomicLong(0)
     private var goolOuterValidated = false
     private var lastBindAddress: String = "127.0.0.1:1819"
+    private val ipv4Pattern = Regex("""^\d{1,3}(\.\d{1,3}){3}(/\d{1,2})?$""")
 
     private suspend fun runCommand(vararg command: String): Int = withContext(Dispatchers.IO) {
         LogRepository.d("Executing command: ${command.joinToString(" ")}")
@@ -356,8 +357,11 @@ class AetherProcessRunner(private val context: PlatformContext) {
             return trimmed
         }
 
-        val isIp = trimmed.all { it.isDigit() || it == '.' || it == ':' || it == '/' || (it.lowercaseChar() in 'a'..'f') } &&
-                (trimmed.contains('.') || trimmed.contains(':'))
+        // Genuine IP only: a colon means IPv6; otherwise require a full IPv4
+        // address (optionally with /CIDR). The previous "all chars in a–f/digits/
+        // dot/colon/slash" heuristic misclassified hex-only domains such as
+        // "abc.def" or "dead.beef" as IPs.
+        val isIp = trimmed.contains(':') || ipv4Pattern.matches(trimmed)
 
         return if (isIp) "ip:$trimmed" else "domain:$trimmed"
     }

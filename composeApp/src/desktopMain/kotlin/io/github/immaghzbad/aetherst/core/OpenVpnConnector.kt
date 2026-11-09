@@ -536,7 +536,7 @@ class OpenVpnConnector(
                 }
                 LogRepository.d("[OpenVPN] Session /1 removed: ${parts[0]} via ${parts[1]}", "OpenVPN")
             }
-            val stillThere = querySlashOneRoutes().toSet() - before
+            val stillThere = (querySlashOneRoutes().toSet() - before)
                 .filter { it.split("|").getOrNull(3)?.let { d -> isCommunityTap(d) } == true }
             if (stillThere.isNotEmpty()) {
                 warnNeedsAdmin("could not remove ${stillThere.size} tunnel route(s)")

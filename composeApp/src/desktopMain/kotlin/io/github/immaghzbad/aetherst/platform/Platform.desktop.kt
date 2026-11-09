@@ -571,9 +571,12 @@ actual fun AppIcon(app: AppInfo, modifier: Modifier) {
 
 private fun resolveLnkTarget(lnkPath: String): String? {
     return try {
+        // Escape single quotes so a path containing ' cannot break out of the
+        // PowerShell string literal (matches extractExeIcon's escaping below).
+        val psPath = lnkPath.replace("'", "''")
         val process = ProcessBuilder(
             "powershell", "-NoProfile", "-Command",
-            "(New-Object -ComObject WScript.Shell).CreateShortcut('$lnkPath').TargetPath"
+            "(New-Object -ComObject WScript.Shell).CreateShortcut('$psPath').TargetPath"
         ).start()
         val result = process.inputStream.bufferedReader().readText().trim()
         process.waitFor()

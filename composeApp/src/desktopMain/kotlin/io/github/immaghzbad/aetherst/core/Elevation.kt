@@ -41,12 +41,17 @@ object Elevation {
             if (cmd.isNullOrBlank()) return false
 
             val ps1 = Files.createTempFile("aether-relaunch-", ".ps1")
+            val escapedCmd = cmd.replace("'", "''")
+            // One logical line with a real PowerShell array for -ArgumentList.
+            // The old form emitted "-ArgumentList 'a' 'b' 'c'" across separate
+            // lines, which PowerShell rejects (only one positional would bind,
+            // and the line broke before -Verb/-WindowStyle).
+            val argList = args.joinToString(", ") { "'" + it.replace("'", "''") + "'" }
             val script = buildString {
-                appendLine("\$proc = Start-Process -FilePath '$cmd'")
-                append(" -ArgumentList '")
-                append(args.joinToString("' '") { it.replace("'", "''") })
-                appendLine("'")
-                appendLine(" -Verb RunAs -PassThru -WindowStyle Hidden")
+                appendLine(
+                    "\$proc = Start-Process -FilePath '$escapedCmd' -ArgumentList @($argList) " +
+                        "-Verb RunAs -PassThru -WindowStyle Hidden"
+                )
                 appendLine("if (\$proc) { exit }")
             }
             Files.writeString(ps1, script)
