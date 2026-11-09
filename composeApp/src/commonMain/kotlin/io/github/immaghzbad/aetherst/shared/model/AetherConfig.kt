@@ -133,7 +133,7 @@ data class RoutingRule(
 data class AetherConfig(
     val presetId: String = "turbo",
     val protocol: AetherProtocol = AetherProtocol.MASQUE,
-    // 1.7.3 defaults per user request: Bypass=Balanced, Speed=Turbo, Capsule button.
+    // 1.7.1 defaults per user request: Bypass=Balanced, Speed=Turbo, Capsule button.
     val noise: AetherNoise = AetherNoise.BALANCED,
     val scanMode: AetherScanMode = AetherScanMode.TURBO,
     val ipMode: AetherIpMode = AetherIpMode.AUTO,

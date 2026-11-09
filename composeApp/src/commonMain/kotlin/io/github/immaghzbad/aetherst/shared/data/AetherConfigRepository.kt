@@ -78,7 +78,7 @@ class AetherConfigRepository private constructor(private val settings: Settings)
 
     private fun readFromSettings(prefix: String): AetherConfig {
         val protocolStr = settings.getString("${prefix}protocol", AetherProtocol.MASQUE.name)
-        // 1.7.3: fresh defaults Bypass=Balanced, Speed=Turbo (user request, all protocols).
+        // 1.7.1: fresh defaults Bypass=Balanced, Speed=Turbo (user request, all protocols).
         val noiseStr = settings.getString("${prefix}noise", AetherNoise.BALANCED.name)
         val scanModeStr = settings.getString("${prefix}scan_mode", AetherScanMode.TURBO.name)
         val ipModeStr = settings.getString("${prefix}ip_mode", AetherIpMode.AUTO.name)
@@ -259,7 +259,7 @@ class AetherConfigRepository private constructor(private val settings: Settings)
 
     private fun sanitizeConnectButtonStyle(value: String): String {
         val v = value.trim().lowercase()
-        // 1.7.3: capsule is the default connect button (user request).
+        // 1.7.1: capsule is the default connect button (user request).
         return if (v == "capsule" || v == "swipe") v else "capsule"
     }
 
@@ -501,7 +501,7 @@ class AetherConfigRepository private constructor(private val settings: Settings)
             saveProtocolSettings(current)
         }
         val base = loadProtocolSettings(targetProtocol, current)
-        // 1.7.3: all presets use Bypass=Balanced, Speed=Turbo (user request);
+        // 1.7.1: all presets use Bypass=Balanced, Speed=Turbo (user request);
         // on Windows keep SYSTEM_PROXY so browsers work without admin/TUN.
         val windowsMode = if (isWindows) ConnectionMode.SYSTEM_PROXY else ConnectionMode.TUNNEL
         var updated = when (presetId) {
@@ -619,7 +619,7 @@ class AetherConfigRepository private constructor(private val settings: Settings)
     }
 
     private fun protocolDefaults(base: AetherConfig, protocol: AetherProtocol): AetherConfig {
-        // 1.7.3: every protocol defaults to Bypass=Balanced, Speed=Turbo (user request).
+        // 1.7.1: every protocol defaults to Bypass=Balanced, Speed=Turbo (user request).
         return when (protocol) {
             AetherProtocol.MASQUE -> base.copy(
                 protocol = protocol,

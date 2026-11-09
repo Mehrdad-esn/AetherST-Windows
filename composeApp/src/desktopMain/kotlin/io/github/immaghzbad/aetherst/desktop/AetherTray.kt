@@ -185,7 +185,7 @@ object AetherTray {
                 btn.isBorderPainted = false
                 btn.font = Font("Segoe UI", Font.PLAIN, 12)
                 btn.horizontalAlignment = SwingConstants.LEFT
-                // 1.7.3: compact buttons so the full menu (incl. Logs/Exit) fits above the taskbar.
+                // 1.7.1: compact buttons so the full menu (incl. Logs/Exit) fits above the taskbar.
                 btn.maximumSize = Dimension(204, 32)
                 btn.preferredSize = Dimension(204, 32)
                 btn.alignmentX = java.awt.Component.CENTER_ALIGNMENT
@@ -243,7 +243,7 @@ object AetherTray {
             var x = e.xOnScreen - size.width
             var y = e.yOnScreen - size.height - 4
             try {
-                // 1.7.3: clamp into maximumWindowBounds (excludes taskbar) so the
+                // 1.7.1: clamp into maximumWindowBounds (excludes taskbar) so the
                 // bottom rows (Settings/Logs/Exit) are never cut off.
                 val ge = GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
                 if (x < ge.x) x = ge.x + 4

@@ -402,7 +402,7 @@ fun DashboardScreen(
                 // Desktop windows are short (e.g. 432x784 at 125% DPI): never hide
                 // the chain cards there, the column above scrolls instead.
                 if (!isVeryCompactHeight || isDesktop) {
-                    // 1.7.3: desktop always shows Psiphon chain (engine has no Tor flags);
+                    // 1.7.1: desktop always shows Psiphon chain (engine has no Tor flags);
                     // Android shows Tor card only when TOR provider is selected, else Psiphon.
                     if (config.chainProvider == ChainProvider.TOR && !isDesktop) {
                         val torAllowed = config.protocol != AetherProtocol.OPENVPN

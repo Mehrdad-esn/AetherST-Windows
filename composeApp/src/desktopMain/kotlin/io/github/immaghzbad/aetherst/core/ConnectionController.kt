@@ -437,7 +437,7 @@ actual object ConnectionController {
         private suspend fun runPsiphonDirect(config: AetherConfig, socksPort: Int, httpPort: Int, upstream: String?) {
             val connector = startStableHelper(config, socksPort, httpPort, upstream) ?: return
             ActiveProxyProvider.psiphonProxyUrl = connector.getUpstreamProxy()
-            // 1.7.3: both counting relays chain via SOCKS; the HTTP relay speaks
+            // 1.7.1: both counting relays chain via SOCKS; the HTTP relay speaks
             // SOCKS upstream, so it must target the helper SOCKS port (not HTTP).
             startCountingRelays(connector.activeSocksPort(), connector.activeSocksPort())
             if (upstream == null) {

@@ -307,7 +307,7 @@ class AetherProcessRunner(private val context: PlatformContext) {
             }
             lower.contains("validating") -> updateState(ConnectionStatus.VALIDATING, attemptId)
             (protocol == AetherProtocol.MASQUE && (lower.contains("tunnel validated") || lower.contains("connect-ip status: 200"))) ||
-            // 1.7.3: WG/OPENVPN must show RUNNING only after real validation, not just
+            // 1.7.1: WG/OPENVPN must show RUNNING only after real validation, not just
             // "SOCKS listening" (that premature state caused PROXY ACTIVE + 0B + Iran IP).
             ((protocol == AetherProtocol.WG || protocol == AetherProtocol.OPENVPN) && (lower.contains("wireguard tunnel validated") || lower.contains("handshake complete") || lower.contains("tunnel validated"))) -> {
                 updateState(ConnectionStatus.RUNNING, attemptId)

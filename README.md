@@ -40,7 +40,7 @@
 - 🔗 **Psiphon Chain (Windows):** Optional second layer via a bundled GPL helper built from psiphon-tunnel-core `v2.0.41` sources (same version as Android), chained over MASQUE/WireGuard/Gool with Auto, Fallback, Always, and Psiphon-only modes plus selectable egress region.
 - 🔀 **OpenVPN Hybrid (Windows-only):** Chain any `.ovpn` config over the app proxy tunnel (file picker included).
 - 📡 **Intelligent Scanning:** Real-time gateway discovery with data-plane validation before connection.
-- ⚡ **Native Performance:** Aether engine `v1.8.0` (verified with `aether -v`) + HEV `v2.17.1` (verified).
+- ⚡ **Native Performance:** Aether engine `v2.0.0` (verified with `aether -v`) + HEV `v2.17.1` (verified).
 - 🖥️ **Desktop UI:** iOS-inspired dashboard (Compose Multiplatform) with Fa/En localization, DNS benchmark optimizer, tray, single-instance guard, native MSI.
 - 🛠️ **Developer-Ready:** Built-in diagnostics, real-time logging, and flexible protocol presets.
 - ⛔ **Not on Windows:** Tor chain (the shipped `aether.exe` has no Tor flags — verified with `aether --help`), MASQUE-in-MASQUE (no `--mim` flag in the shipped engine), Cloudflare Zero Trust (removed).
@@ -62,7 +62,7 @@ A specialized nested WireGuard configuration. By wrapping one WireGuard tunnel i
 An optional second layer powered by `psiphon-helper.exe`, built from the open-source psiphon-tunnel-core `v2.0.41` sources shipped in `psiphon-helper/` (GPL-3.0, same version as the Android app). Two directions, like Android: core-first (apps → helper on `127.0.0.1:3080` SOCKS → Aether core → internet) or psiphon-first (helper dials direct, core chains through it via the engine's `--upstream` flag). Modes: Auto, Fallback (= core first, psiphon-first fallback), Always, and Psiphon-only (no Aether core). Selectable egress region (auto-discovered list is cached), local HTTP proxy on `socks+1`. (No MASQUE race on desktop: the order picker decides the direction deterministically.)
 
 ### 🧅 Tor Chain (Android only — NOT in this Windows build)
-Upstream Android has a Tor second layer (Tor inside tunnel / tunnel through Tor / Tor only, BridgeDB bridges). The Windows engine (`aether.exe`, verified `1.8.0`) exposes no `--tor*` flags, so Tor chain is not shipped here. The Tor toggle is hidden on desktop; imported Android configs selecting Tor fall back to Psiphon.
+Upstream Android has a Tor second layer (Tor inside tunnel / tunnel through Tor / Tor only, BridgeDB bridges). The Windows engine (`aether.exe`, verified `2.0.0`) exposes no `--tor*` flags, so Tor chain is not shipped here. The Tor toggle is hidden on desktop; imported Android configs selecting Tor fall back to Psiphon.
 
 ---
 
