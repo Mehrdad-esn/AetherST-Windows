@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.immaghzbad.aetherst.platform.isDesktop
 import io.github.immaghzbad.aetherst.shared.i18n.LocalAppStrings
 
 private val IosCardBg = AppPalette.surfaceRaised
@@ -67,7 +68,7 @@ fun CrashReportScreen(
             .fillMaxSize()
             .background(Color.Black)
             .padding(20.dp)
-            .padding(top = if (platformName == "Windows") 12.dp else 36.dp)
+            .padding(top = if (isDesktop) 12.dp else 36.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
