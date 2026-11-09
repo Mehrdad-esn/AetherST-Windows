@@ -137,19 +137,26 @@ class AetherProcessRunner(private val context: PlatformContext) {
             }
             if (config.noDataCheck) command.add("--no-data-check")
             if (config.quickReconnect) command.add("--quick-reconnect") else command.add("--no-quick-reconnect")
-            val wiwOuter = if (config.protocol == AetherProtocol.GOOL) config.wiwOuter.trim() else ""
-            val wiwInner = if (config.protocol == AetherProtocol.GOOL) config.wiwInner.trim() else ""
+            // Aether 2.4.0 split gool into two engines: the classic WG-in-WG
+            // (selected with AETHER_GOOL_MODE=classic, or any AETHER_WIW_* var)
+            // and the new WARP-over-MASQUE gool (the 2.4.0 default). Existing
+            // users stay on classic unless they opt into the modern mode.
+            val isGoolClassic = config.protocol == AetherProtocol.GOOL && !config.goolModern
+            val isGoolModern = config.protocol == AetherProtocol.GOOL && config.goolModern
+            val isWgFamily = config.protocol == AetherProtocol.WG || isGoolClassic || config.protocol == AetherProtocol.OPENVPN
+            val wiwOuter = if (isGoolClassic) config.wiwOuter.trim() else ""
+            val wiwInner = if (isGoolClassic) config.wiwInner.trim() else ""
             val hasWiwManual = wiwOuter.isNotEmpty() || wiwInner.isNotEmpty()
-            val effectivePeerForCmd = if (!hasWiwManual && (config.protocol == AetherProtocol.WG || config.protocol == AetherProtocol.GOOL || config.protocol == AetherProtocol.OPENVPN) && config.wgPeer.isNotEmpty()) config.wgPeer else if (!hasWiwManual) config.peer else ""
+            val effectivePeerForCmd = if (!hasWiwManual && isWgFamily && config.wgPeer.isNotEmpty()) config.wgPeer else if (!hasWiwManual) config.peer else ""
             if (effectivePeerForCmd.isNotEmpty()) {
                 command.add("--peer")
                 command.add(effectivePeerForCmd)
             }
-            if (!hasWiwManual && (config.protocol == AetherProtocol.WG || config.protocol == AetherProtocol.GOOL || config.protocol == AetherProtocol.OPENVPN) && effectivePeerForCmd.isNotEmpty()) {
+            if (!hasWiwManual && isWgFamily && effectivePeerForCmd.isNotEmpty()) {
                 command.add("--wg-peer")
                 command.add(effectivePeerForCmd)
             }
-            if (config.protocol == AetherProtocol.GOOL) {
+            if (isGoolClassic) {
                 if (wiwOuter.isNotEmpty()) {
                     command.add("--wiw-outer")
                     command.add(wiwOuter)
@@ -162,7 +169,11 @@ class AetherProcessRunner(private val context: PlatformContext) {
                     command.add("--wiw-scan")
                 }
             }
-            if ((config.protocol == AetherProtocol.WG || config.protocol == AetherProtocol.GOOL || config.protocol == AetherProtocol.OPENVPN)) {
+            if (isGoolModern && config.goolPeer.isNotBlank()) {
+                command.add("--gool-peer")
+                command.add(config.goolPeer.trim())
+            }
+            if (isWgFamily || isGoolModern) {
                 command.add("--keepalive")
                 command.add(if (config.keepaliveEnabled) config.keepalive.toString() else "0")
             }
@@ -196,6 +207,13 @@ class AetherProcessRunner(private val context: PlatformContext) {
                 }
                 if (config.mimScan) command.add("--mim-scan")
             }
+            val exitLockSpec = exitLockSpec(config)
+            if (exitLockSpec != null) {
+                command.add("--exit-loc")
+                command.add(exitLockSpec)
+                command.add("--exit-loc-secs")
+                command.add(config.exitLockSecs.coerceIn(15, 3600).toString())
+            }
 
             val env = mutableMapOf<String, String>()
             // Windows-only OpenVPN Hybrid: the Aether core has no openvpn mode,
@@ -224,18 +242,25 @@ class AetherProcessRunner(private val context: PlatformContext) {
                 env["AETHER_WG_NO_DATA_CHECK"] = "1"
             }
             if (config.quickReconnect) env["AETHER_QUICK_RECONNECT"] = "1" else env["AETHER_QUICK_RECONNECT"] = "0"
-            if (config.protocol == AetherProtocol.WG || config.protocol == AetherProtocol.GOOL || config.protocol == AetherProtocol.OPENVPN) {
+            if (isWgFamily) {
                 if (!hasWiwManual) {
                     if (config.wgPeer.isNotEmpty()) env["AETHER_WG_PEER"] = config.wgPeer else if (config.peer.isNotEmpty()) env["AETHER_WG_PEER"] = config.peer
                     if (config.peer.isNotEmpty()) env["AETHER_PEER"] = config.peer
                 }
-                if (config.protocol == AetherProtocol.GOOL) {
-                    if (wiwOuter.isNotEmpty()) env["AETHER_WIW_OUTER_PEER"] = wiwOuter
-                    if (wiwInner.isNotEmpty()) env["AETHER_WIW_INNER_PEER"] = wiwInner
-                    if (!hasWiwManual && config.wiwScan && effectivePeerForCmd.isEmpty()) env["AETHER_WIW_PEERS"] = "auto"
-                }
             } else {
                 if (config.peer.isNotEmpty()) env["AETHER_PEER"] = config.peer
+            }
+            if (isGoolClassic) {
+                if (wiwOuter.isNotEmpty()) env["AETHER_WIW_OUTER_PEER"] = wiwOuter
+                if (wiwInner.isNotEmpty()) env["AETHER_WIW_INNER_PEER"] = wiwInner
+                if (!hasWiwManual && config.wiwScan && effectivePeerForCmd.isEmpty()) env["AETHER_WIW_PEERS"] = "auto"
+                // Explicit classic selection (Aether 2.4.0 defaults to the new gool).
+                env["AETHER_GOOL_MODE"] = "classic"
+            } else if (isGoolModern) {
+                // Any value other than wiw/wg/classic keeps the new gool; set it
+                // explicitly so an inherited AETHER_GOOL_MODE cannot flip it back.
+                env["AETHER_GOOL_MODE"] = "masque"
+                if (config.goolPeer.isNotBlank()) env["AETHER_GOOL_INNER"] = config.goolPeer.trim()
             }
             env["AETHER_WG_KEEPALIVE"] = if (config.keepaliveEnabled) config.keepalive.toString() else "0"
             env["AETHER_WG_ENDPOINT_COOLDOWN_SECS"] = config.wgEndpointCooldownSecs.toString()
@@ -259,6 +284,10 @@ class AetherProcessRunner(private val context: PlatformContext) {
             env["AETHER_ROUTE_SNIFF"] = if (config.routeSniffing) "1" else "0"
             env["AETHER_ROUTE_SNIFF_MS"] = config.sniffingTimeoutMs.toString()
             env["AETHER_REPROVISION"] = if (config.reprovision) "1" else "0"
+            if (exitLockSpec != null) {
+                env["AETHER_EXIT_LOC"] = exitLockSpec
+                env["AETHER_EXIT_LOC_SECS"] = config.exitLockSecs.coerceIn(15, 3600).toString()
+            }
 
             LogRepository.d("Executing: ${command.joinToString(" ")}")
             if (!proc.start(command, systemUtils.getFilesDir(), env)) {
@@ -314,9 +343,20 @@ class AetherProcessRunner(private val context: PlatformContext) {
                 updateState(ConnectionStatus.RUNNING, attemptId)
             }
             protocol == AetherProtocol.GOOL -> {
-                if (lower.contains("outer") && lower.contains("tunnel validated")) goolOuterValidated = true
-                if (lower.contains("inner") && lower.contains("tunnel validated") && goolOuterValidated) {
+                // Aether 2.4.0 has two gool engines:
+                //  * modern (WARP-over-MASQUE, the new default): the outer hop is
+                //    MASQUE and never logs "<outer> tunnel validated"; the single
+                //    definitive readiness line is "[+] gool ready: masque <peer>
+                //    carries wireguard <peer>".
+                //  * classic (WireGuard-in-WireGuard): outer WG validates first,
+                //    then inner WG.
+                if (lower.contains("gool ready")) {
                     updateState(ConnectionStatus.RUNNING, attemptId)
+                } else {
+                    if (lower.contains("outer") && lower.contains("tunnel validated")) goolOuterValidated = true
+                    if (lower.contains("inner") && lower.contains("tunnel validated") && goolOuterValidated) {
+                        updateState(ConnectionStatus.RUNNING, attemptId)
+                    }
                 }
             }
             lower.contains("reconnecting") || lower.contains("tunnel lost") || lower.contains("handshake timeout") ||
@@ -329,6 +369,19 @@ class AetherProcessRunner(private val context: PlatformContext) {
 
     private fun updateState(state: ConnectionStatus, attemptId: Long) {
         if (currentAttemptId.get() == attemptId) _connectionStatus.value = state
+    }
+
+    /** Builds the `--exit-loc` spec (e.g. `!IR,AZ,RU` or `DE,SE`), or null when no lock is active. */
+    private fun exitLockSpec(config: AetherConfig): String? {
+        if (!config.exitLockEnabled) return null
+        val codes = config.exitLockCountries
+            .split(',', ' ', ';', '\n', '\t')
+            .map { it.trim().uppercase() }
+            .filter { it.matches(Regex("^[A-Z]{2}$")) }
+            .distinct()
+            .joinToString(",")
+        if (codes.isEmpty()) return null
+        return if (config.exitLockMode == ExitLockMode.BLOCK) "!$codes" else codes
     }
 
     private fun writeRoutingFile(config: AetherConfig): java.io.File? {

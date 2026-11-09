@@ -1,7 +1,8 @@
-# Engine version research (2026-09-14)
+# Engine version research
 
-Why the Windows build now ships Aether engine v2.0.0. All claims below were
-verified against primary sources on this date.
+Why the Windows build ships Aether engine **v2.4.0**. The 2026-09-14 research
+below records the original move to v2.0.0 (kept for history); the 2026-11-10
+re-base to v2.4.0 is recorded after it.
 
 ## Findings
 
@@ -39,3 +40,29 @@ verified against primary sources on this date.
   psiphon-helper (GPL) integrations.
 - AGPL §13 (network use of modified versions) does not trigger: the binary
   is unmodified and runs locally as a client tunnel, not as a network service.
+
+## Update — 2026-11-10 re-base to Aether v2.4.0 / HEV v2.19.3
+
+- **Aether engine → v2.4.0.** Official `CluvexStudio/Aether` tag `v2.4.0`
+  (published 2026-10-24). Zip SHA256
+  `21b1444628d37121e873878e2eddd7932215418af1a2a12470caee5809026f1a`; the
+  extracted `aether.exe` (24,467,456 B) prints `aether 2.4.0`.
+- **Behaviour change handled:** in 2.4.0 the bare `--gool`/`AETHER_GOOL_MODE`
+  now means the new **WARP-over-MASQUE** gool; the old WireGuard-in-WireGuard
+  gool is selected explicitly with `--gool-classic` / `AETHER_GOOL_MODE=classic`
+  (or any `AETHER_WIW_*` var). The app sends `AETHER_GOOL_MODE=classic` for the
+  classic engine and `AETHER_GOOL_MODE=masque` for the modern one, so the mode
+  is deterministic regardless of inherited env.
+- **New capability surfaced:** `--exit-loc` / `--exit-loc-secs` (exit-country
+  lock) is wired to a new Security-page control, and the modern gool gets a
+  `--gool-peer` inner-endpoint override.
+- **HEV → v2.19.3.** `heiher/hev-socks5-tunnel` tag `2.19.3` (2026-10-25);
+  `hev-socks5-tunnel.exe` = 326,144 B (same `msys-2.0.dll` / `wintun.dll`).
+- **Psiphon → v2.0.42.** `Psiphon-Labs/psiphon-tunnel-core` tag `v2.0.42`
+  (2026-10-19); `psiphon-helper.exe` rebuilt from source (see
+  `psiphon-helper/README.md`).
+- **Engine flags now present that this port still does not use:** 2.4.0 ships
+  `--tor*` (and `pt/lyrebird.exe`) and a built-in `--psiphon`. Tor is excluded
+  by design; the second layer stays the separate `psiphon-helper.exe`.
+- **License:** unchanged (Aether AGPL-3.0, HEV MIT, psiphon-tunnel-core
+  GPL-3.0); all binaries shipped unmodified as separate processes.

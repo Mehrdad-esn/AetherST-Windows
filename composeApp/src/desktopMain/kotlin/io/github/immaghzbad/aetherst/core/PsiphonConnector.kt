@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicLong
  * Windows-only Psiphon chain connector (original work of this Windows port).
  *
  * Runs the GPL-3.0 `psiphon-helper.exe` (built from the psiphon-tunnel-core
- * v2.0.41 sources in `psiphon-helper/`, same version as the Android app) as a
+ * v2.0.42 sources in `psiphon-helper/`, same version as the Android app) as a
  * separate local proxy, mirroring the Android PsiphonController semantics:
  *
  * - core-first: helper dials through the Aether core SOCKS (`--upstream`),

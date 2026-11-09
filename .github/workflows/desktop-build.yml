@@ -6,6 +6,7 @@ on:
     tags:
       - 'v*-windows'
       - 'v1.7'
+      - 'v1.8*'
 
 jobs:
   build-windows:
@@ -44,6 +45,16 @@ jobs:
           name: AetherST-Tunnel-Windows-MSI
           path: composeApp/build/compose/binaries/main-release/msi/*.msi
 
+      - name: Compute MSI SHA256 sidecar
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem "composeApp/build/compose/binaries/main-release/msi/*.msi" | Select-Object -First 1
+          if (-not $msi) { throw "No MSI found to hash" }
+          $hash = (Get-FileHash -Algorithm SHA256 $msi.FullName).Hash.ToLower()
+          "$hash  $($msi.Name)" | Out-File -Encoding ascii "$($msi.FullName).sha256"
+          Get-Content "$($msi.FullName).sha256"
+
       - name: Create Release (Optional - only on tags)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -51,6 +62,7 @@ jobs:
           files: |
             composeApp/build/compose/binaries/main-release/exe/*.exe
             composeApp/build/compose/binaries/main-release/msi/*.msi
+            composeApp/build/compose/binaries/main-release/msi/*.msi.sha256
           draft: false
           prerelease: false
         env:

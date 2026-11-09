@@ -126,6 +126,8 @@ class AetherConfigRepository private constructor(private val settings: Settings)
             wiwOuter = settings.getString("${prefix}wiw_outer", ""),
             wiwInner = settings.getString("${prefix}wiw_inner", ""),
             wiwScan = settings.getBoolean("${prefix}wiw_scan", true),
+            goolModern = settings.getBoolean("${prefix}gool_modern", false),
+            goolPeer = settings.getString("${prefix}gool_peer", ""),
             masqueMtu = settings.getInt("${prefix}masque_mtu", 0),
             netstackTcpRx = settings.getInt("${prefix}netstack_tcp_rx", 0),
             netstackTcpTx = settings.getInt("${prefix}netstack_tcp_tx", 0),
@@ -151,6 +153,10 @@ class AetherConfigRepository private constructor(private val settings: Settings)
             routeSniffing = settings.getBoolean("${prefix}route_sniffing", true),
             sniffingTimeoutMs = settings.getInt("${prefix}sniffing_timeout_ms", 100),
             reprovision = settings.getBoolean("${prefix}reprovision", true),
+            exitLockEnabled = settings.getBoolean("${prefix}exit_lock_enabled", false),
+            exitLockMode = sanitizeExitLockMode(settings.getString("${prefix}exit_lock_mode", "BLOCK")),
+            exitLockCountries = sanitizeExitLockCountries(settings.getString("${prefix}exit_lock_countries", "")),
+            exitLockSecs = settings.getInt("${prefix}exit_lock_secs", 60),
             hevLogLevel = sanitizeHevLogLevel(settings.getString("${prefix}hev_log_level", "warn")),
             hevConnectTimeoutMs = settings.getInt("${prefix}hev_connect_timeout_ms", 5000),
             hevReadWriteTimeoutMs = settings.getInt("${prefix}hev_read_write_timeout_ms", 60000),
@@ -255,6 +261,19 @@ class AetherConfigRepository private constructor(private val settings: Settings)
     private fun sanitizePsiphonEgressRegion(value: String): String {
         val v = value.trim().uppercase()
         return if (v.isEmpty() || v.matches(Regex("^[A-Z]{2}$"))) v else ""
+    }
+
+    private fun sanitizeExitLockMode(value: String): ExitLockMode {
+        return try { ExitLockMode.valueOf(value.trim().uppercase()) } catch (_: Exception) { ExitLockMode.BLOCK }
+    }
+
+    /** Keeps only well-formed ISO-3166 alpha-2 codes, uppercase, deduplicated. */
+    private fun sanitizeExitLockCountries(value: String): String {
+        return value.split(',', ' ', ';', '\n', '\t')
+            .map { it.trim().uppercase() }
+            .filter { it.matches(Regex("^[A-Z]{2}$")) }
+            .distinct()
+            .joinToString(",")
     }
 
     private fun sanitizeConnectButtonStyle(value: String): String {
@@ -365,6 +384,8 @@ class AetherConfigRepository private constructor(private val settings: Settings)
         settings.putString("${prefix}wiw_outer", cfg.wiwOuter)
         settings.putString("${prefix}wiw_inner", cfg.wiwInner)
         settings.putBoolean("${prefix}wiw_scan", cfg.wiwScan)
+        settings.putBoolean("${prefix}gool_modern", cfg.goolModern)
+        settings.putString("${prefix}gool_peer", cfg.goolPeer.trim())
         settings.putInt("${prefix}masque_mtu", cfg.masqueMtu.coerceIn(0, 9000))
         settings.putInt("${prefix}netstack_tcp_rx", cfg.netstackTcpRx.coerceIn(0, 67108864))
         settings.putInt("${prefix}netstack_tcp_tx", cfg.netstackTcpTx.coerceIn(0, 67108864))
@@ -388,6 +409,10 @@ class AetherConfigRepository private constructor(private val settings: Settings)
         settings.putBoolean("${prefix}route_sniffing", cfg.routeSniffing)
         settings.putInt("${prefix}sniffing_timeout_ms", cfg.sniffingTimeoutMs)
         settings.putBoolean("${prefix}reprovision", cfg.reprovision)
+        settings.putBoolean("${prefix}exit_lock_enabled", cfg.exitLockEnabled)
+        settings.putString("${prefix}exit_lock_mode", cfg.exitLockMode.name)
+        settings.putString("${prefix}exit_lock_countries", sanitizeExitLockCountries(cfg.exitLockCountries))
+        settings.putInt("${prefix}exit_lock_secs", cfg.exitLockSecs.coerceIn(15, 3600))
         settings.putString("${prefix}hev_log_level", sanitizeHevLogLevel(cfg.hevLogLevel))
         settings.putInt("${prefix}hev_connect_timeout_ms", cfg.hevConnectTimeoutMs.coerceIn(500, 120000))
         settings.putInt("${prefix}hev_read_write_timeout_ms", cfg.hevReadWriteTimeoutMs.coerceIn(1000, 600000))

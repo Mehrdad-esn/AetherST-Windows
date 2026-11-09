@@ -792,6 +792,22 @@ interface AppStrings {
     val DNS_APPLIED: String
     val TOAST_DNS_APPLIED: String
     val TOR_DESKTOP_UNAVAILABLE: String
+    // Aether 2.4.0: gool engine picker (classic WG-in-WG vs modern WARP-over-MASQUE)
+    val GOOL_MODE: String
+    val GOOL_MODE_SUB: String
+    val GOOL_MODE_CLASSIC: String
+    val GOOL_MODE_MODERN: String
+    val GOOL_PEER: String
+    // Aether 2.4.0: exit-country lock (--exit-loc)
+    val EXIT_LOCK_TITLE: String
+    val EXIT_LOCK_ENABLE: String
+    val EXIT_LOCK_ENABLE_SUB: String
+    val EXIT_LOCK_MODE: String
+    val EXIT_LOCK_MODE_BLOCK: String
+    val EXIT_LOCK_MODE_ALLOW: String
+    val EXIT_LOCK_COUNTRIES: String
+    val EXIT_LOCK_SECS: String
+    val EXIT_LOCK_ABOUT: String
 }
 
 val LocalAppStrings = compositionLocalOf<AppStrings> { StringsEn }

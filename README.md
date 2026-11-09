@@ -30,20 +30,29 @@
 
 ## 📱 Versions & Platforms
 
-- **Windows Client (this port):** `v1.7.1` — sections below marked *(Windows)* describe exactly what this build contains (every version number verified against the shipped binaries). Installs in place over older versions (same MSI product identity); older installs are offered updates automatically via the in-app update prompt.
+- **Windows Client (this port):** `v1.8.0` — sections below marked *(Windows)* describe exactly what this build contains (every version number verified against the shipped binaries). Installs in place over older versions (same MSI product identity); older installs are offered updates automatically via the in-app update prompt.
 - **Android Client (upstream):** `v1.7.0` — sections marked *(Android)* describe the upstream mobile client for reference; they are **not** all present on Windows (see the Windows notes).
+
+## 🆕 What's new in 1.8.0
+
+- **Engines upgraded:** Aether `2.4.0`, HEV `2.19.3`, Psiphon tunnel-core `2.0.42` (helper rebuilt from source).
+- **Two Gool engines:** classic WireGuard-in-WireGuard, or the new **WARP over MASQUE** — choose under *Settings → Protocol → Gool Engine*.
+- **Exit-Country Lock:** block or allow exit countries by ISO code (e.g. `IR,AZ,RU`); the core re-checks on a timer and reconnects if the exit drifts — *Settings → Security*.
+- **MASQUE-in-MASQUE** is available in the 2.4.0 engine.
+- Carried-over fixes: IP-pattern routing detection, OpenVPN route cleanup, `.lnk` quoting, elevated relaunch, crash-screen padding.
 
 ## ✨ Features (Windows)
 
 - 🛡️ **Stealth Connectivity:** Specifically optimized to bypass protocol fingerprinting and DPI.
-- 🚀 **Advanced Transports:** **MASQUE**, **WireGuard**, **Gool (WG-in-WG)**. (Cloudflare Zero Trust was removed from this port by design.)
-- 🔗 **Psiphon Chain (Windows):** Optional second layer via a bundled GPL helper built from psiphon-tunnel-core `v2.0.41` sources (same version as Android), chained over MASQUE/WireGuard/Gool with Auto, Fallback, Always, and Psiphon-only modes plus selectable egress region.
+- 🚀 **Advanced Transports:** **MASQUE**, **WireGuard**, **Gool** — both the classic WireGuard-in-WireGuard mode and the new WARP-over-MASQUE mode (Aether 2.4.0) — plus **MASQUE-in-MASQUE**. (Cloudflare Zero Trust was removed from this port by design.)
+- 🌍 **Exit-Country Lock (Aether 2.4.0):** Ban or allow exit countries by ISO code (e.g. `IR,AZ,RU`); the core re-checks the exit on a timer and reconnects if it drifts.
+- 🔗 **Psiphon Chain (Windows):** Optional second layer via a bundled GPL helper built from psiphon-tunnel-core `v2.0.42` sources (same version as Android), chained over MASQUE/WireGuard/Gool with Auto, Fallback, Always, and Psiphon-only modes plus selectable egress region.
 - 🔀 **OpenVPN Hybrid (Windows-only):** Chain any `.ovpn` config over the app proxy tunnel (file picker included).
 - 📡 **Intelligent Scanning:** Real-time gateway discovery with data-plane validation before connection.
-- ⚡ **Native Performance:** Aether engine `v2.0.0` (verified with `aether -v`) + HEV `v2.17.1` (verified).
+- ⚡ **Native Performance:** Aether engine `v2.4.0` (verified with `aether -v`) + HEV `v2.19.3` (verified).
 - 🖥️ **Desktop UI:** iOS-inspired dashboard (Compose Multiplatform) with Fa/En localization, DNS benchmark optimizer, tray, single-instance guard, native MSI.
 - 🛠️ **Developer-Ready:** Built-in diagnostics, real-time logging, and flexible protocol presets.
-- ⛔ **Not on Windows:** Tor chain (the shipped `aether.exe` has no Tor flags — verified with `aether --help`), MASQUE-in-MASQUE (no `--mim` flag in the shipped engine), Cloudflare Zero Trust (removed).
+- ⛔ **Not on Windows:** the engine's Tor chain (the shipped `aether.exe` exposes `--tor*` flags, but this port never passes them — Tor is excluded by design to keep the bundle lean; the app's optional second layer is the Psiphon helper instead) and Cloudflare Zero Trust (removed).
 
 ## 🛠️ Supported Protocols
 
@@ -55,34 +64,36 @@ The flagship protocol for stealth. By tunneling traffic over QUIC (H3) or TLS (H
 ### 🛡️ WireGuard
 A modern, high-performance VPN protocol that uses state-of-the-art cryptography. It is optimized for maximum speed and minimal battery drain on mobile devices.
 
-### 🌀 Gool (Warp-in-Warp / WG-in-WG)
-A specialized nested WireGuard configuration. By wrapping one WireGuard tunnel inside another, it provides an additional layer of encryption and obfuscation, effectively bypassing many restrictive firewalls and improving stability.
+### 🌀 Gool (Warp-in-Warp / WG-in-WG, plus WARP over MASQUE)
+A specialized nested tunnel with two engines selectable in the app (Aether 2.4.0):
+- **Classic** wraps one WireGuard tunnel inside another (WireGuard-in-WireGuard) for an extra layer of encryption and obfuscation.
+- **Modern** (new in 2.4.0) rides the inner WireGuard tunnel over an outer **MASQUE (HTTP/3)** hop — the same carrier MASQUE uses — which passes stricter networks that fingerprint nested WireGuard.
 
 ### 🔗 Psiphon Chain (Windows)
-An optional second layer powered by `psiphon-helper.exe`, built from the open-source psiphon-tunnel-core `v2.0.41` sources shipped in `psiphon-helper/` (GPL-3.0, same version as the Android app). Two directions, like Android: core-first (apps → helper on `127.0.0.1:3080` SOCKS → Aether core → internet) or psiphon-first (helper dials direct, core chains through it via the engine's `--upstream` flag). Modes: Auto, Fallback (= core first, psiphon-first fallback), Always, and Psiphon-only (no Aether core). Selectable egress region (auto-discovered list is cached), local HTTP proxy on `socks+1`. (No MASQUE race on desktop: the order picker decides the direction deterministically.)
+An optional second layer powered by `psiphon-helper.exe`, built from the open-source psiphon-tunnel-core `v2.0.42` sources shipped in `psiphon-helper/` (GPL-3.0, same version as the Android app). Two directions, like Android: core-first (apps → helper on `127.0.0.1:3080` SOCKS → Aether core → internet) or psiphon-first (helper dials direct, core chains through it via the engine's `--upstream` flag). Modes: Auto, Fallback (= core first, psiphon-first fallback), Always, and Psiphon-only (no Aether core). Selectable egress region (auto-discovered list is cached), local HTTP proxy on `socks+1`. (No MASQUE race on desktop: the order picker decides the direction deterministically.)
 
-### 🧅 Tor Chain (Android only — NOT in this Windows build)
-Upstream Android has a Tor second layer (Tor inside tunnel / tunnel through Tor / Tor only, BridgeDB bridges). The Windows engine (`aether.exe`, verified `2.0.0`) exposes no `--tor*` flags, so Tor chain is not shipped here. The Tor toggle is hidden on desktop; imported Android configs selecting Tor fall back to Psiphon.
+### 🧅 Tor Chain (Android only — NOT wired up in this Windows build)
+Upstream Android has a Tor second layer (Tor inside tunnel / tunnel through Tor / Tor only, BridgeDB bridges). The Aether 2.4.0 engine does expose `--tor*` flags, but this Windows port deliberately never passes them (Tor is out of scope here) and ships no Tor/pluggable-transport binaries. The Tor toggle is hidden on desktop; imported Android configs selecting Tor fall back to Psiphon.
 
 ---
 
 ## 🏗️ Technical Architecture
 
-### Aether engine `v2.0.0` (Windows binary, verified with `aether -v`)
-Official build from [CluvexStudio/Aether `v2.0.0`](https://github.com/CluvexStudio/Aether/releases/tag/v2.0.0) (AGPL-3.0 — SHA256-verified download; same engine generation as the Android `libaether.so`, which also reports `2.0.0`). Shipped unmodified; full source at the linked tag.
+### Aether engine `v2.4.0` (Windows binary, verified with `aether -v`)
+Official build from [CluvexStudio/Aether `v2.4.0`](https://github.com/CluvexStudio/Aether/releases/tag/v2.4.0) (AGPL-3.0 — SHA256-verified download, `21b14446…9026f1a`). Shipped unmodified; full source at the linked tag.
 The layer responsible for:
 - Encrypted tunnel management.
 - Dynamic gateway health checks.
-- Multi-protocol handling (MASQUE, WG, Gool, MASQUE-in-MASQUE) plus `--upstream` chaining.
-- The binary also contains Tor/Zero Trust-team flags, but this port never passes `--tor*` (Tor chain excluded by design) and Zero Trust was removed from the app entirely.
+- Multi-protocol handling (MASQUE, WG, Gool — classic and the new WARP-over-MASQUE — MASQUE-in-MASQUE) plus `--upstream` chaining and the `--exit-loc` exit-country lock.
+- The binary also contains Tor/Zero-Trust team flags, but this port never passes `--tor*` (Tor excluded by design) and Zero Trust was removed from the app entirely.
 
-### [HEV SOCKS5 Tunnel v2.17.1](https://github.com/heiher/hev-socks5-tunnel/releases/tag/2.17.1)
+### [HEV SOCKS5 Tunnel v2.19.3](https://github.com/heiher/hev-socks5-tunnel/releases/tag/2.19.3)
 The native bridge between the system and Aether (Android Native):
 - Mature user-space TCP/IP stack.
 - Zero-copy packet processing.
 - Efficient UDP over SOCKS5 translation.
 
-### [Psiphon Tunnel Core v2.0.41](https://github.com/Psiphon-Labs/psiphon-tunnel-core/releases/tag/v2.0.41) (GPL-3.0)
+### [Psiphon Tunnel Core v2.0.42](https://github.com/Psiphon-Labs/psiphon-tunnel-core/releases/tag/v2.0.42) (GPL-3.0)
 The optional second-layer circumvention engine:
 - Open-source Psiphon client core for restricted networks.
 - Provides foreign exit IPs with selectable egress region.
@@ -106,7 +117,7 @@ This Windows port was developed **vibe-coding style**: designed, written and ite
 
 ### 🔗 Psiphon Chain on Windows (this port)
 
-Same tunnel-core version as Android (`v2.0.41`), but as a separate `psiphon-helper.exe` process built from the sources in `psiphon-helper/` (GPL-3.0 — full build instructions there; Go 1.26.x required). The helper exposes `127.0.0.1:3080` (SOCKS) and chains through the Aether core, so the exit IP is the Psiphon egress. Server entries ship from the same `server_entries.txt` the Android build uses.
+Same tunnel-core version as Android (`v2.0.42`), but as a separate `psiphon-helper.exe` process built from the sources in `psiphon-helper/` (GPL-3.0 — full build instructions there; Go 1.26.x required). The helper exposes `127.0.0.1:3080` (SOCKS) and chains through the Aether core, so the exit IP is the Psiphon egress. Server entries ship from the same `server_entries.txt` the Android build uses.
 
 ### 🔀 OpenVPN Hybrid (exclusive to this Windows port)
 
@@ -121,7 +132,7 @@ Chains a full OpenVPN client over the app's proxy tunnel (the Aether core runs i
 
 ### Installation
 1. Go to the [Releases](https://github.com/Mehrdad-esn/AetherST-Windows/releases) page.
-2. **Windows:** Download `AetherST-1.7.1.msi` (release **1.7.1**) and install it (upgrades older versions in place). Older installs are also offered this update automatically through the in-app update prompt with an Update button. Each release ships an `.msi.sha256` sidecar — verify with `certutil -hashfile AetherST-1.7.1.msi SHA256` before installing (SmartScreen may still warn on first releases: the build is unsigned; click *More info → Run anyway*).
+2. **Windows:** Download `AetherST-1.8.0.msi` (release **1.8.0**) and install it (upgrades older versions in place). Older installs are also offered this update automatically through the in-app update prompt with an Update button. Each release ships an `.msi.sha256` sidecar — verify with `certutil -hashfile AetherST-1.8.0.msi SHA256` before installing (SmartScreen may still warn on first releases: the build is unsigned; click *More info → Run anyway*).
 3. **Android (upstream):** Get the APK from the [upstream releases](https://github.com/immaghzbad/AetherST/releases) page (`arm64-v8a` recommended).
 
 ### Build from Source
@@ -152,7 +163,7 @@ This project uses the following open-source resources:
 - [flag-icons](https://github.com/lipis/flag-icons) — Country flag icons for multi-language and region UI elements.
 - [Vazirmatn](https://github.com/rastikerdar/vazirmatn) — Open-source Persian (Farsi) typeface used for RTL language support.
 - [Inter](https://github.com/rsms/inter) — Open-source English typeface used for the interface typeface.
-- [psiphon-tunnel-core v2.0.41](https://github.com/Psiphon-Labs/psiphon-tunnel-core/releases/tag/v2.0.41) — Open-source Psiphon client core powering the optional Psiphon Chain layer.
+- [psiphon-tunnel-core v2.0.42](https://github.com/Psiphon-Labs/psiphon-tunnel-core/releases/tag/v2.0.42) — Open-source Psiphon client core powering the optional Psiphon Chain layer.
 
 ---
 <p align="center">

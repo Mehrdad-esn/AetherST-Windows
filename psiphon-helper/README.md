@@ -2,7 +2,7 @@
 
 Standalone Psiphon client for the AetherST Windows port. It runs
 [psiphon-tunnel-core](https://github.com/Psiphon-Labs/psiphon-tunnel-core)
-(`v2.0.41`, same version as the Android app) as a local SOCKS/HTTP proxy, so
+(`v2.0.42`, same version as the Android app) as a local SOCKS/HTTP proxy, so
 the desktop app can chain traffic through Psiphon exactly like Android does —
 without needing Android-only binaries.
 
@@ -29,7 +29,7 @@ at startup on newer toolchains (verified).
 # download https://go.dev/dl/go1.26.8.windows-amd64.zip, extract, add bin/ to PATH
 
 # 2. fetch the exact upstream source (not committed)
-git clone --depth 1 --branch v2.0.41 https://github.com/Psiphon-Labs/psiphon-tunnel-core upstream
+git clone --depth 1 --branch v2.0.42 https://github.com/Psiphon-Labs/psiphon-tunnel-core upstream
 
 # 3. build
 $env:GOTOOLCHAIN = "local"

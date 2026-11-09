@@ -94,6 +94,16 @@ enum class ConnectionMode {
     SYSTEM_PROXY
 }
 
+/**
+ * Exit-country lock (Aether 2.4.0 `--exit-loc`): refuse a tunnel whose exit
+ * country is not wanted, re-checked every [AetherConfig.exitLockSecs] seconds.
+ */
+@Serializable
+enum class ExitLockMode(val rawValue: String, val displayName: String) {
+    BLOCK("block", "Block listed countries"),
+    ALLOW("allow", "Allow only listed countries")
+}
+
 @Serializable
 enum class ConnectionStatus {
     STOPPED,
@@ -156,6 +166,11 @@ data class AetherConfig(
     val wiwOuter: String = "",
     val wiwInner: String = "",
     val wiwScan: Boolean = true,
+    // Aether 2.4.0 Gool modes. Classic = the original WireGuard-in-WireGuard
+    // (`--gool-classic`). Modern = the new WARP-over-MASQUE gool (default in
+    // 2.4.0). Default false keeps existing users on the classic behaviour.
+    val goolModern: Boolean = false,
+    val goolPeer: String = "",
     val masqueMtu: Int = 0,
     val netstackTcpRx: Int = 0,
     val netstackTcpTx: Int = 0,
@@ -187,6 +202,11 @@ data class AetherConfig(
     val routeSniffing: Boolean = true,
     val sniffingTimeoutMs: Int = 100,
     val reprovision: Boolean = true,
+    // Aether 2.4.0 exit-country lock (`--exit-loc` / `--exit-loc-secs`).
+    val exitLockEnabled: Boolean = false,
+    val exitLockMode: ExitLockMode = ExitLockMode.BLOCK,
+    val exitLockCountries: String = "",
+    val exitLockSecs: Int = 60,
     val hevLogLevel: String = "warn",
     val hevConnectTimeoutMs: Int = 5000,
     val hevReadWriteTimeoutMs: Int = 60000,
